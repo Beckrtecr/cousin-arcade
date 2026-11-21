@@ -1,0 +1,228 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Cousin Arcade</title>
+<link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=Rubik:wght@400;600;800&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #0d0b1e;
+    --panel: #1a1636;
+    --text: #f4f1ff;
+    --muted: #a59fd0;
+    --accent: #ffd23f;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: radial-gradient(circle at 20% 0%, #2a1f5c 0%, var(--bg) 55%);
+    background-color: var(--bg);
+    color: var(--text);
+    font-family: "Rubik", system-ui, sans-serif;
+    min-height: 100vh;
+  }
+  header {
+    text-align: center;
+    padding: 48px 16px 24px;
+  }
+  h1 {
+    font-family: "Press Start 2P", monospace;
+    font-size: clamp(22px, 5vw, 44px);
+    margin: 0 0 14px;
+    color: var(--accent);
+    text-shadow: 4px 4px 0 #ff4d6d;
+    letter-spacing: 2px;
+  }
+  header p { color: var(--muted); margin: 0; font-size: 17px; }
+
+  .search {
+    display: block;
+    margin: 24px auto 0;
+    width: min(420px, 100%);
+    padding: 12px 18px;
+    border-radius: 999px;
+    border: 2px solid #3a3370;
+    background: var(--panel);
+    color: var(--text);
+    font: inherit;
+    font-size: 16px;
+    outline: none;
+  }
+  .search:focus { border-color: var(--accent); }
+
+  main {
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 16px 16px 64px;
+  }
+  .grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+    gap: 22px;
+  }
+  .card {
+    background: var(--panel);
+    border-radius: 16px;
+    overflow: hidden;
+    cursor: pointer;
+    border: 2px solid transparent;
+    transition: transform .15s, border-color .15s, box-shadow .15s;
+    text-align: left;
+    padding: 0;
+    color: inherit;
+    font: inherit;
+  }
+  .card:hover, .card:focus-visible {
+    transform: translateY(-6px) scale(1.02);
+    border-color: var(--accent);
+    box-shadow: 0 12px 30px rgba(0,0,0,.5);
+    outline: none;
+  }
+  .thumb {
+    aspect-ratio: 16 / 10;
+    width: 100%;
+    display: grid;
+    place-items: center;
+    font-family: "Press Start 2P", monospace;
+    font-size: 40px;
+    color: rgba(255,255,255,.9);
+    background-size: cover;
+    background-position: center;
+    position: relative;
+  }
+  .thumb .play {
+    position: absolute;
+    inset: 0;
+    display: grid;
+    place-items: center;
+    background: rgba(0,0,0,.45);
+    opacity: 0;
+    transition: opacity .15s;
+    font-size: 16px;
+  }
+  .card:hover .play { opacity: 1; }
+  .info { padding: 14px 16px 16px; }
+  .info h2 { margin: 0 0 4px; font-size: 19px; font-weight: 800; }
+  .info span { color: var(--muted); font-size: 14px; }
+  .empty { text-align: center; color: var(--muted); padding: 40px; }
+
+  /* ---------- Full screen player ---------- */
+  #player {
+    position: fixed;
+    inset: 0;
+    background: #000;
+    display: none;
+    flex-direction: column;
+    z-index: 100;
+  }
+  #player.open { display: flex; }
+  .bar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 8px 12px;
+    background: var(--panel);
+    border-bottom: 2px solid #3a3370;
+  }
+  .bar strong { font-size: 16px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .minimize {
+    flex-shrink: 0;
+    background: var(--accent);
+    color: #1a1636;
+    border: none;
+    border-radius: 10px;
+    padding: 8px 16px;
+    font: inherit;
+    font-weight: 800;
+    font-size: 15px;
+    cursor: pointer;
+  }
+  .minimize:hover { filter: brightness(1.1); }
+  #frame { flex: 1; width: 100%; border: 0; background: #000; }
+</style>
+</head>
+<body>
+  <header>
+    <h1>COUSIN ARCADE</h1>
+    <p>Games made by us. Pick one and play!</p>
+    <input class="search" id="search" type="search" placeholder="Search games...">
+  </header>
+
+  <main>
+    <div class="grid" id="grid"></div>
+  </main>
+
+  <div id="player">
+    <div class="bar">
+      <strong id="playing"></strong>
+      <button class="minimize" id="minimize">▼ Minimize</button>
+    </div>
+    <iframe id="frame" allow="fullscreen; autoplay; gamepad"></iframe>
+  </div>
+
+<script src="games-list.js"></script>
+<script>
+  const grid = document.getElementById("grid");
+  const player = document.getElementById("player");
+  const frame = document.getElementById("frame");
+  const playing = document.getElementById("playing");
+
+  function showGames(filter = "") {
+    grid.innerHTML = "";
+    const list = GAMES.filter(g => g.title.toLowerCase().includes(filter.toLowerCase()));
+    if (!list.length) {
+      grid.innerHTML = '<p class="empty">No games found.</p>';
+      return;
+    }
+    for (const game of list) {
+      const card = document.createElement("button");
+      card.className = "card";
+      const thumbStyle = game.thumbnail
+        ? `background-image:url('${game.thumbnail}')`
+        : `background:linear-gradient(135deg, ${game.color || "#7b5cff"}, #1a1636)`;
+      card.innerHTML = `
+        <div class="thumb" style="${thumbStyle}">
+          ${game.thumbnail ? "" : game.title[0]}
+          <div class="play">▶ PLAY</div>
+        </div>
+        <div class="info">
+          <h2></h2>
+          <span></span>
+        </div>`;
+      card.querySelector("h2").textContent = game.title;
+      card.querySelector("span").textContent = "by " + (game.maker || "us");
+      card.onclick = () => openGame(game);
+      grid.appendChild(card);
+    }
+  }
+
+  function openGame(game) {
+    playing.textContent = game.title;
+    frame.src = game.folder.replace(/\/$/, "") + "/index.html";
+    player.classList.add("open");
+    document.body.style.overflow = "hidden";
+    // Go true full screen when the browser allows it
+    if (player.requestFullscreen) player.requestFullscreen().catch(() => {});
+    setTimeout(() => frame.focus(), 100);
+  }
+
+  function closeGame() {
+    player.classList.remove("open");
+    frame.src = "about:blank"; // stops the game
+    document.body.style.overflow = "";
+    if (document.fullscreenElement) document.exitFullscreen().catch(() => {});
+  }
+
+  document.getElementById("minimize").onclick = closeGame;
+  // If someone presses Esc to leave full screen, close the game too
+  document.addEventListener("fullscreenchange", () => {
+    if (!document.fullscreenElement && player.classList.contains("open")) closeGame();
+  });
+  document.getElementById("search").oninput = e => showGames(e.target.value);
+
+  showGames();
+</script>
+</body>
+</html>
