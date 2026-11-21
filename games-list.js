@@ -15,4 +15,18 @@ const GAMES = [
     thumbnail: "games/super-seagulls/thumb.svg", // blank = auto colour card
     color: "#5fb8f0",
   },
+  {
+    title: "Notebook Brawl",
+    maker: "Cousin Crew",
+    folder: "games/notebook-brawl",
+    thumbnail: "games/notebook-brawl/thumb.svg",
+    color: "#d33a2c",
+  },
+  {
+    title: "One Button Cup",
+    maker: "Cousin Crew",
+    folder: "games/one-button-cup",
+    thumbnail: "games/one-button-cup/thumb.svg",
+    color: "#ffc83a",
+  },
 ];

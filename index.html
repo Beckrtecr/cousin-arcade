@@ -216,10 +216,8 @@
   }
 
   document.getElementById("minimize").onclick = closeGame;
-  // If someone presses Esc to leave full screen, close the game too
-  document.addEventListener("fullscreenchange", () => {
-    if (!document.fullscreenElement && player.classList.contains("open")) closeGame();
-  });
+  // Esc leaves browser full screen, but the game keeps running (many games use Esc to pause).
+  // Only the Minimize button closes a game.
   document.getElementById("search").oninput = e => showGames(e.target.value);
 
   showGames();
