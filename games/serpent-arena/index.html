@@ -1,0 +1,1216 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>Serpent Arena</title>
+<link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  *{box-sizing:border-box;margin:0;padding:0}
+  html,body{width:100%;height:100%;overflow:hidden;background:#07090f;color:#fff;
+    font-family:'Fredoka',system-ui,-apple-system,'Segoe UI',sans-serif;
+    -webkit-user-select:none;user-select:none;-webkit-tap-highlight-color:transparent;touch-action:none}
+  #game{position:fixed;inset:0;width:100%;height:100%;display:block;cursor:crosshair}
+  .hud{position:fixed;pointer-events:none;z-index:5;transition:opacity .3s}
+  .hidden{opacity:0 !important;pointer-events:none !important}
+  #board{top:12px;right:12px;width:190px;background:rgba(8,12,22,.55);border:1px solid rgba(255,255,255,.08);
+    border-radius:14px;padding:10px 12px;backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px)}
+  #board h3{font-size:13px;font-weight:600;letter-spacing:.12em;text-transform:uppercase;color:#8fa3c8;margin-bottom:6px;text-align:center}
+  #board ol{list-style:none;font-size:13.5px;line-height:1.55}
+  #board li{display:flex;gap:6px;white-space:nowrap;color:#cfd8ea}
+  #board li .n{width:20px;color:#6f7f9f;text-align:right;flex:none}
+  #board li .nm{flex:1;overflow:hidden;text-overflow:ellipsis}
+  #board li .sc{color:#9fb0cf;font-variant-numeric:tabular-nums}
+  #board li.me{color:#ffe66b;font-weight:600}
+  #board li.me .sc,#board li.me .n{color:#ffe66b}
+  #stats{left:14px;bottom:14px;font-size:15px;color:#b9c6df;text-shadow:0 1px 3px #000}
+  #stats b{color:#fff;font-size:22px;font-weight:600;font-variant-numeric:tabular-nums}
+  #stats .row{margin-top:2px}
+  #mini{right:12px;bottom:12px;width:132px;height:132px;border-radius:50%;
+    background:rgba(8,12,22,.55);border:1px solid rgba(255,255,255,.1)}
+  #toasts{top:14px;left:50%;transform:translateX(-50%);display:flex;flex-direction:column;align-items:center;gap:6px}
+  .toast{background:rgba(8,12,22,.7);border:1px solid rgba(255,255,255,.1);padding:6px 14px;border-radius:99px;font-size:14px;
+    animation:toast 2.6s forwards;white-space:nowrap}
+  .toast b{color:#ffe66b;font-weight:600}
+  @keyframes toast{0%{opacity:0;transform:translateY(-8px)}10%,80%{opacity:1;transform:none}100%{opacity:0}}
+  #boostBtn{position:fixed;z-index:6;left:22px;bottom:70px;width:84px;height:84px;border-radius:50%;display:none;
+    align-items:center;justify-content:center;font:600 14px 'Fredoka',sans-serif;letter-spacing:.08em;color:#fff;
+    background:radial-gradient(circle at 35% 30%,rgba(255,255,255,.28),rgba(255,255,255,.07));
+    border:2px solid rgba(255,255,255,.3);touch-action:none}
+  #boostBtn.on{background:radial-gradient(circle at 35% 30%,#ffe66b,#ff8a3d);border-color:#fff}
+  body.touch #boostBtn{display:flex}
+  body.touch #stats{bottom:auto;top:12px}
+  body.touch #board{width:150px;padding:8px 10px}
+  body.touch #board ol{font-size:12px}
+  body.touch #mini{width:100px;height:100px}
+
+  #menu{position:fixed;inset:0;z-index:10;display:flex;align-items:center;justify-content:center;
+    background:radial-gradient(ellipse at center,rgba(7,9,15,.35),rgba(7,9,15,.82));transition:opacity .35s;padding:16px}
+  .card{width:min(440px,100%);text-align:center;padding:26px 24px 22px;border-radius:24px;
+    background:rgba(12,17,30,.78);border:1px solid rgba(255,255,255,.1);
+    box-shadow:0 20px 60px rgba(0,0,0,.6);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px)}
+  h1{font-size:clamp(34px,9vw,52px);font-weight:700;line-height:1;letter-spacing:-.01em;
+    background:linear-gradient(90deg,#5dfc9b,#3fd4ff 45%,#b98cff 80%,#ff7ac3);-webkit-background-clip:text;background-clip:text;color:transparent;
+    filter:drop-shadow(0 4px 18px rgba(63,212,255,.35))}
+  .sub{color:#8fa3c8;font-size:15px;margin:8px 0 18px}
+  #result{display:none;margin:-4px 0 16px;padding:12px;border-radius:14px;background:rgba(255,255,255,.05);font-size:15px;color:#cfd8ea}
+  #result .big{font-size:30px;font-weight:700;color:#ffe66b;line-height:1.1}
+  #result .line{color:#8fa3c8;font-size:14px;margin-top:4px}
+  #nick{width:100%;padding:13px 16px;border-radius:14px;border:1px solid rgba(255,255,255,.14);background:rgba(0,0,0,.35);
+    color:#fff;font:500 18px 'Fredoka',sans-serif;text-align:center;outline:none;-webkit-user-select:text;user-select:text}
+  #nick:focus{border-color:#3fd4ff;box-shadow:0 0 0 3px rgba(63,212,255,.2)}
+  #nick::placeholder{color:#5f6f8f}
+  .lbl{font-size:12px;letter-spacing:.14em;text-transform:uppercase;color:#6f7f9f;margin:16px 0 8px}
+  #skins{display:flex;flex-wrap:wrap;gap:8px;justify-content:center}
+  #skins canvas{width:58px;height:34px;border-radius:10px;background:rgba(0,0,0,.35);border:2px solid transparent;cursor:pointer;transition:transform .12s,border-color .12s}
+  #skins canvas:hover{transform:translateY(-2px)}
+  #skins canvas.sel{border-color:#ffe66b;background:rgba(255,230,107,.1)}
+  #play{margin-top:20px;width:100%;padding:15px;border:0;border-radius:16px;cursor:pointer;
+    font:700 21px 'Fredoka',sans-serif;color:#06240f;letter-spacing:.03em;
+    background:linear-gradient(180deg,#7dffb0,#2fd774);box-shadow:0 6px 0 #159a4b,0 14px 30px rgba(47,215,116,.35);transition:transform .08s,box-shadow .08s}
+  #play:hover{filter:brightness(1.06)}
+  #play:active{transform:translateY(4px);box-shadow:0 2px 0 #159a4b,0 6px 16px rgba(47,215,116,.3)}
+  #revive,#cont{display:none;margin-top:20px;width:100%;padding:15px;border:0;border-radius:16px;cursor:pointer;
+    font:700 20px 'Fredoka',sans-serif;color:#3a2500;letter-spacing:.02em;
+    background:linear-gradient(180deg,#ffe98a,#ffb52e);box-shadow:0 6px 0 #b9770a,0 14px 30px rgba(255,181,46,.35);transition:transform .08s,box-shadow .08s}
+  #revive:hover,#cont:hover{filter:brightness(1.06)}
+  #revive:active,#cont:active{transform:translateY(4px);box-shadow:0 2px 0 #b9770a,0 6px 16px rgba(255,181,46,.3)}
+  #revive small,#cont small{display:block;font-weight:500;font-size:13px;opacity:.75}
+  #play.alt{margin-top:12px;padding:11px;font-size:16px;color:#cfd8ea;background:rgba(255,255,255,.08);box-shadow:none;border:1px solid rgba(255,255,255,.14)}
+  #keysHud{color:#ffd95a;font-weight:600}
+  #shop{left:50%;bottom:12px;transform:translateX(-50%);display:flex;gap:8px;pointer-events:auto}
+  .item{position:relative;width:88px;padding:7px 4px 6px;border-radius:14px;text-align:center;cursor:pointer;
+    background:rgba(8,12,22,.62);border:1.5px solid rgba(255,255,255,.14);backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px);transition:transform .1s,opacity .2s,border-color .2s}
+  .item:hover{transform:translateY(-2px)}
+  .item .ic{font-size:21px;line-height:1.1;font-weight:700}
+  .item .nm{font-size:12px;color:#cfd8ea}
+  .item .pr{font-size:12.5px;color:#ffd95a;font-weight:600;font-variant-numeric:tabular-nums}
+  .item kbd{position:absolute;top:4px;left:6px;font:500 10px 'Fredoka',sans-serif;color:#7f90b0}
+  .item.off{opacity:.42}
+  .item.active{border-color:#ffd95a;box-shadow:0 0 14px rgba(255,217,90,.35)}
+  #pauseBtn{position:fixed;z-index:6;top:12px;left:12px;width:40px;height:40px;border-radius:12px;display:flex;align-items:center;justify-content:center;
+    cursor:pointer;font-size:14px;color:#cfd8ea;background:rgba(8,12,22,.62);border:1.5px solid rgba(255,255,255,.14)}
+  #pause{position:fixed;inset:0;z-index:9;display:flex;align-items:center;justify-content:center;background:rgba(7,9,15,.7);transition:opacity .2s}
+  #pause .card{width:min(340px,90%)}
+  #pause h2{font-size:34px;font-weight:700;margin-bottom:6px}
+  #resume{margin-top:16px;width:100%;padding:13px;border:0;border-radius:14px;cursor:pointer;font:700 19px 'Fredoka',sans-serif;color:#06240f;
+    background:linear-gradient(180deg,#7dffb0,#2fd774);box-shadow:0 5px 0 #159a4b}
+  body.touch #shop{left:8px;transform:none;gap:4px}
+  body.touch .item{width:47px;padding:5px 2px;border-radius:11px}
+  body.touch .item .ic{font-size:17px}
+  body.touch .item .pr{font-size:10.5px}
+  body.touch .item .nm,body.touch .item kbd{display:none}
+  body.touch #mini{bottom:74px}
+  @media (max-width:1040px){
+    body:not(.touch) #shop{gap:5px}
+    body:not(.touch) .item{width:58px}
+    body:not(.touch) .item .nm{display:none}
+    body:not(.touch) #stats{bottom:88px}
+    body:not(.touch) #mini{bottom:88px}
+  }
+  #bank{margin-top:14px;font-size:14px;color:#ffd95a;font-weight:500}
+  body.touch #pauseBtn{top:66px}
+  .help{margin-top:16px;font-size:13px;color:#7f90b0;line-height:1.6}
+  .help kbd{display:inline-block;padding:0 6px;border-radius:6px;background:rgba(255,255,255,.1);color:#cfd8ea;font:500 12px 'Fredoka',sans-serif}
+</style>
+</head>
+<body>
+<canvas id="game"></canvas>
+
+<div id="board" class="hud hidden"><h3>Leaderboard</h3><ol id="boardList"></ol></div>
+<div id="stats" class="hud hidden">
+  <div>Length <b id="len">10</b></div>
+  <div class="row"><span id="rank">Rank 1 of 1</span> &nbsp;·&nbsp; <span id="kills">0 kills</span> &nbsp;·&nbsp; <span id="keysHud">🔑 0</span></div>
+</div>
+<canvas id="mini" class="hud hidden" width="264" height="264"></canvas>
+<div id="toasts" class="hud"></div>
+<div id="boostBtn" class="hidden">BOOST</div>
+<div id="pauseBtn" class="hidden" title="Pause (P)">❚❚</div>
+<div id="shop" class="hud hidden">
+  <div class="item" data-item="magnet"><kbd>1</kbd><div class="ic">🧲</div><div class="nm">Magnet</div><div class="pr"></div></div>
+  <div class="item" data-item="double"><kbd>2</kbd><div class="ic">×2</div><div class="nm">Double</div><div class="pr"></div></div>
+  <div class="item" data-item="inf"><kbd>3</kbd><div class="ic">∞</div><div class="nm">Infinite keys</div><div class="pr"></div></div>
+  <div class="item" data-item="shield"><kbd>4</kbd><div class="ic">🛡️</div><div class="nm">Shield</div><div class="pr"></div></div>
+  <div class="item" data-item="turbo"><kbd>5</kbd><div class="ic">⚡</div><div class="nm">Turbo</div><div class="pr"></div></div>
+  <div class="item" data-item="freeze"><kbd>6</kbd><div class="ic">❄️</div><div class="nm">Freeze</div><div class="pr"></div></div>
+  <div class="item" data-item="teleport"><kbd>7</kbd><div class="ic">🌀</div><div class="nm">Teleport</div><div class="pr"></div></div>
+</div>
+<div id="pause" class="hidden"><div class="card"><h2>Paused</h2><p class="sub" style="margin:0">Press <b>P</b> or <b>Esc</b> to resume</p><button id="resume">Resume</button></div></div>
+
+<div id="menu">
+  <div class="card">
+    <h1>Serpent Arena</h1>
+    <p class="sub">Eat. Grow. Cut them off.</p>
+    <div id="result"></div>
+    <input id="nick" maxlength="14" placeholder="Nickname" autocomplete="off" spellcheck="false">
+    <div class="lbl">Choose a skin</div>
+    <div id="skins"></div>
+    <div id="bank"></div>
+    <button id="cont"></button>
+    <button id="revive"></button>
+    <button id="play">Play</button>
+    <p class="help" id="help"></p>
+  </div>
+</div>
+
+<script>
+(() => {
+'use strict';
+
+/* ───────────── constants ───────────── */
+const R = 3000;                 // arena radius
+const CELL = 100;
+const GN = Math.ceil(2 * R / CELL) + 3;
+const BASE_SPEED = 165, BOOST_SPEED = 345;
+const BOT_COUNT = 21;
+const FOOD_TARGET = 1800;
+const TAU = Math.PI * 2;
+const FH = 24;                  // quantised food hues
+
+const rand = (a, b) => a + Math.random() * (b - a);
+const clamp = (v, a, b) => v < a ? a : v > b ? b : v;
+const wrap = a => { a %= TAU; if (a > Math.PI) a -= TAU; else if (a < -Math.PI) a += TAU; return a; };
+const cellX = x => clamp(((x + R) / CELL | 0) + 1, 1, GN - 2);
+
+/* ───────────── canvas ───────────── */
+const canvas = document.getElementById('game');
+const ctx = canvas.getContext('2d', { alpha: false });
+let dpr = 1, vw = 0, vh = 0, vignette = null;
+function resize() {
+  dpr = Math.min(window.devicePixelRatio || 1, 2);
+  vw = window.innerWidth; vh = window.innerHeight;
+  canvas.width = Math.round(vw * dpr); canvas.height = Math.round(vh * dpr);
+  const g = ctx.createRadialGradient(canvas.width / 2, canvas.height / 2, Math.min(canvas.width, canvas.height) * 0.35,
+                                     canvas.width / 2, canvas.height / 2, Math.hypot(canvas.width, canvas.height) / 2);
+  g.addColorStop(0, 'rgba(0,0,0,0)'); g.addColorStop(1, 'rgba(0,0,0,0.5)');
+  vignette = g;
+}
+window.addEventListener('resize', resize);
+resize();
+
+/* ───────────── sprites ───────────── */
+function mk(w, h) { const c = document.createElement('canvas'); c.width = w; c.height = h; return c; }
+const ballCache = new Map();
+function ball(h, s, l) {
+  const key = h + '|' + s + '|' + l;
+  let c = ballCache.get(key);
+  if (c) return c;
+  c = mk(64, 64);
+  const g = c.getContext('2d');
+  const gr = g.createRadialGradient(24, 21, 2, 32, 32, 31);
+  gr.addColorStop(0, `hsl(${h},${s}%,${Math.min(96, l + 30)}%)`);
+  gr.addColorStop(0.45, `hsl(${h},${s}%,${l}%)`);
+  gr.addColorStop(1, `hsl(${h},${s}%,${Math.max(3, l - 24)}%)`);
+  g.fillStyle = gr; g.beginPath(); g.arc(32, 32, 30, 0, TAU); g.fill();
+  g.strokeStyle = 'rgba(0,0,0,0.42)'; g.lineWidth = 2.5; g.beginPath(); g.arc(32, 32, 30, 0, TAU); g.stroke();
+  ballCache.set(key, c);
+  return c;
+}
+function glowSprite(h, s) {
+  const c = mk(64, 64), g = c.getContext('2d');
+  const gr = g.createRadialGradient(32, 32, 0, 32, 32, 32);
+  gr.addColorStop(0, `hsla(${h},${s}%,70%,0.95)`);
+  gr.addColorStop(0.35, `hsla(${h},${s}%,58%,0.38)`);
+  gr.addColorStop(1, `hsla(${h},${s}%,50%,0)`);
+  g.fillStyle = gr; g.fillRect(0, 0, 64, 64);
+  return c;
+}
+const foodGlow = [], foodCore = [];
+for (let i = 0; i < FH; i++) { foodGlow.push(glowSprite(i * 15, 100)); foodCore.push(ball(i * 15, 95, 62)); }
+
+const keyGlow = glowSprite(46, 100), iceGlow = glowSprite(195, 100);
+const keySprite = (() => {
+  const c = mk(96, 96), g = c.getContext('2d');
+  g.translate(48, 48); g.rotate(-Math.PI / 4);
+  const shape = (grow) => {
+    g.lineWidth = 9 + grow * 2; g.beginPath(); g.arc(-17, 0, 12, 0, TAU); g.stroke();
+    g.fillRect(-6 - grow, -4.5 - grow, 40 + grow * 2, 9 + grow * 2);
+    g.fillRect(15 - grow, 0, 7 + grow * 2, 15 + grow);
+    g.fillRect(27 - grow, 0, 7 + grow * 2, 12 + grow);
+  };
+  g.strokeStyle = g.fillStyle = 'rgba(40,22,0,0.85)'; shape(3);
+  const gr = g.createLinearGradient(0, -16, 0, 16);
+  gr.addColorStop(0, '#fff3a8'); gr.addColorStop(0.5, '#ffd23f'); gr.addColorStop(1, '#f59a12');
+  g.strokeStyle = g.fillStyle = gr; shape(0);
+  return c;
+})();
+
+// honeycomb floor tile
+const HEX = 38, TW = Math.round(Math.sqrt(3) * HEX), TH = HEX * 3;
+const bgPattern = (() => {
+  const c = mk(TW, TH), g = c.getContext('2d');
+  g.fillStyle = '#080b13'; g.fillRect(0, 0, TW, TH);
+  const hex = (cx, cy) => {
+    const rr = HEX - 3;
+    g.beginPath();
+    for (let i = 0; i < 6; i++) { const a = Math.PI / 6 + i * Math.PI / 3; g[i ? 'lineTo' : 'moveTo'](cx + Math.cos(a) * rr, cy + Math.sin(a) * rr); }
+    g.closePath();
+    const gr = g.createLinearGradient(cx, cy - rr, cx, cy + rr);
+    gr.addColorStop(0, '#192136'); gr.addColorStop(1, '#101626');
+    g.fillStyle = gr; g.fill();
+    g.strokeStyle = 'rgba(120,150,220,0.07)'; g.lineWidth = 1.5; g.stroke();
+  };
+  [[0, 0], [TW, 0], [TW / 2, HEX * 1.5], [0, TH], [TW, TH]].forEach(p => hex(p[0], p[1]));
+  return ctx.createPattern(c, 'repeat');
+})();
+
+/* ───────────── skins ───────────── */
+const SKINS = [
+  { name: 'Mint',    band: 1, cols: [[150, 85, 52]] },
+  { name: 'Ocean',   band: 5, cols: [[200, 95, 55], [220, 90, 42]] },
+  { name: 'Lava',    band: 4, cols: [[5, 95, 50], [28, 100, 52], [48, 100, 55], [28, 100, 52]] },
+  { name: 'Candy',   band: 4, cols: [[350, 90, 55], [0, 0, 92]] },
+  { name: 'Bee',     band: 4, cols: [[48, 100, 52], [40, 30, 12]] },
+  { name: 'Galaxy',  band: 5, cols: [[265, 85, 55], [225, 90, 55], [310, 85, 60]] },
+  { name: 'Rainbow', band: 3, cols: [[0, 95, 55], [30, 100, 54], [55, 100, 52], [130, 80, 48], [200, 95, 54], [270, 85, 60]] },
+  { name: 'Toxic',   band: 5, cols: [[95, 100, 50], [150, 40, 12]] },
+  { name: 'Ice',     band: 6, cols: [[190, 90, 70], [0, 0, 96], [210, 90, 60]] },
+  { name: 'Sunset',  band: 6, cols: [[325, 90, 58], [18, 100, 58]] },
+  { name: 'Royal',   band: 1, cols: [[280, 80, 58]] },
+  { name: 'Ember',   band: 1, cols: [[18, 100, 54]] },
+];
+SKINS.forEach(sk => {
+  sk.sprites = sk.cols.map(c => ball(c[0], c[1], c[2]));
+  const g = sk.cols.find(c => c[1] > 20) || sk.cols[0];
+  sk.glow = glowSprite(g[0], Math.max(g[1], 70));
+  sk.hues = sk.cols.filter(c => c[1] > 20).map(c => Math.round(c[0] / 15) % FH);
+  if (!sk.hues.length) sk.hues = [0];
+});
+
+const BOT_NAMES = ['Noodle', 'Sir Hiss', 'Danger Noodle', 'Slinky', 'Monty', 'Viper', 'Fang', 'Sly', 'Boa', 'Mamba', 'Zigzag', 'Pretzel',
+  'Spaghetti', 'Wiggles', 'Rattles', 'Scales', 'Venom', 'Twister', 'Loopy', 'Coil', 'Nibbler', 'Hissy Fit', 'Long Boi', 'Slithers',
+  'Pixel', 'Turbo', 'Ghost', 'Mango', 'Pickle', 'Waffle', 'Ziggy', 'Nova', 'Blaze', 'Echo', 'Rogue', 'Bandit', 'Shadow', 'Comet',
+  'Jelly', 'Taco', 'Biscuit', 'Dash', 'Mochi', 'xX_Snek_Xx', 'Captain Coil', 'Lil Wiggle', 'Big Chungus', 'Sneaky', 'Pasta', 'Zoom'];
+
+/* ───────────── world state ───────────── */
+const bodyGrid = Array.from({ length: GN * GN }, () => []);
+const foodGrid = Array.from({ length: GN * GN }, () => []);
+let snakes = [], foods = [], respawns = [], worldKeys = [], keyTimers = [];
+const KEY_COUNT = 32, MAG_R = 430;
+const PRICE = { magnet: 10, double: 20, inf: 100, shield: 15, turbo: 8, freeze: 25, teleport: 12 };
+const MAG_TIME = 30, DBL_CD = 20, INF_TIME = 600, FREEZE_R = 750;
+const ACTIVE = { magnet: 'magnet', shield: 'shield', turbo: 'turbo' };      // item -> running timer
+const COOL = { double: 'dblCd', freeze: 'frzCd', teleport: 'tpCd' };          // item -> recharge timer
+const TIMERS = ['magnet', 'shield', 'turbo', 'dblCd', 'frzCd', 'tpCd', 'inf'];
+const hasRevive = s => s.keys > 0 || s.inf > 0;
+const fmt = n => { n = Math.floor(n); if (n < 1e4) return '' + n; const u = ['K', 'M', 'B', 'T', 'Q']; let i = -1; while (n >= 1000 && i < u.length - 1) { n /= 1000; i++; } return (n < 100 ? n.toFixed(1) : Math.round(n)) + u[i]; };
+const fx = [];
+// same shop, same rules, for the player and for bots
+function buy(s, item) {
+  if (!s.alive) return 'dead';
+  const free = s.inf > 0;
+  if (item === 'inf') { if (free) return 'active'; if (s.keys < PRICE.inf) return 'poor'; s.keys -= PRICE.inf; s.inf = INF_TIME; return 'ok'; }
+  if (ACTIVE[item] && s[ACTIVE[item]] > 0) return 'active';
+  if (COOL[item] && s[COOL[item]] > 0) return 'cooldown';
+  if (!free) { if (s.keys < PRICE[item]) return 'poor'; s.keys -= PRICE[item]; }
+  switch (item) {
+    case 'magnet': s.magnet = MAG_TIME; break;
+    case 'double': s.score = Math.min(1e15, s.score * 2); s.dblCd = DBL_CD; break;
+    case 'shield': s.shield = 12; break;
+    case 'turbo': s.turbo = 20; break;
+    case 'freeze':
+      s.frzCd = 30;
+      fx.push({ x: s.x, y: s.y, t: 0, r: FREEZE_R, c: '150,225,255' });
+      for (const o of snakes) {
+        if (o === s || o.ghost > 0 || o.shield > 0 || Math.hypot(o.x - s.x, o.y - s.y) > FREEZE_R) continue;
+        o.frozen = 3;
+        if (o === player) toast(`❄️ Frozen by <b>${esc(s.name)}</b>!`);
+      }
+      break;
+    case 'teleport': {
+      s.tpCd = 10;
+      fx.push({ x: s.x, y: s.y, t: 0, r: 160, c: '200,150,255' });
+      const [x, y] = freeSpot(500, R * 0.75);
+      s.ang = s.tAng = Math.atan2(-y, -x);
+      s.layBody(x, y); s.ghost = Math.max(s.ghost, 2);
+      fx.push({ x, y, t: 0, r: 160, c: '200,150,255' });
+      if (s === player) input.ang = s.ang;
+      break;
+    }
+  }
+  return 'ok';
+}
+function botShop(s) {
+  if (s.inf > 0) { buy(s, 'double'); buy(s, 'magnet'); buy(s, 'turbo'); buy(s, 'shield'); return; }
+  if (s.keys >= PRICE.inf) { if (buy(s, 'inf') === 'ok' && playing) toast(`<b>${esc(s.name)}</b> unlocked infinite keys!`); }
+  else if (s.persona === 0) return;                                   // saver: holding out for infinite
+  else if (s.keys >= PRICE.double) buy(s, 'double');
+  else if (s.persona === 2 && s.keys >= PRICE.magnet) buy(s, 'magnet');
+}
+// boxed in: bubble up, or blink out
+function botEmergency(s) {
+  if (s.shield > 0 || s.ghost > 0) return;
+  if (s.inf > 0) { buy(s, 'shield'); return; }
+  if (s.persona === 0) return;
+  const reserve = s.persona === 1 ? 20 : 0;
+  if (s.keys >= PRICE.shield + reserve) buy(s, 'shield');
+  else if (s.persona === 2 && s.keys >= PRICE.teleport) buy(s, 'teleport');
+}
+// closing in on a target: freeze it or light the afterburner
+function botAttack(s) {
+  if (s.inf > 0) { buy(s, 'freeze'); return; }
+  if (s.persona !== 2) return;
+  if (s.keys >= PRICE.freeze && s.aggr > 0.5) buy(s, 'freeze');
+  else if (s.keys >= PRICE.turbo && s.turbo <= 0 && s.aggr > 0.7) buy(s, 'turbo');
+}
+function dropKeys(s) {
+  const n = Math.min(s.keys, 12);
+  for (let i = 0; i < n; i++) {
+    const j = Math.random() * s.xs.length | 0;
+    worldKeys.push({ x: s.xs[j] + rand(-30, 30), y: s.ys[j] + rand(-30, 30), ph: rand(0, TAU), age: 0 });
+  }
+  s.keys = 0;
+}
+function spawnKey() { const a = rand(0, TAU), d = Math.sqrt(Math.random()) * R * 0.9; worldKeys.push({ x: Math.cos(a) * d, y: Math.sin(a) * d, ph: rand(0, TAU), age: 0 }); }
+let player = null, time = 0;
+const cam = { x: 0, y: 0, zoom: 1 };
+
+const radiusFor = sc => Math.min(30, 10 + Math.sqrt(sc) * 0.27);
+const segsFor = sc => Math.min(680, 16 + (sc * 0.32 | 0));
+
+class Snake {
+  constructor(name, skin, x, y, score, bot) {
+    this.name = name; this.skin = skin; this.score = score; this.bot = bot;
+    this.alive = true; this.kills = 0; this.keys = 0; this.ghost = 0; this.magnet = 0; this.dblCd = 0; this.inf = 0; this.shield = 0; this.turbo = 0; this.frzCd = 0; this.tpCd = 0; this.frozen = 0;
+    this.ang = rand(0, TAU); this.tAng = this.ang;
+    this.boost = false; this.boosting = false; this.speed = BASE_SPEED;
+    this.r = radiusFor(score); this.seg = this.r * 0.5;
+    this.dropAcc = 0;
+    const n = segsFor(score) + 2;
+    this.xs = new Array(n); this.ys = new Array(n);
+    // spawn coiled in a gentle spiral so long snakes don't stretch across the map
+    let a = this.ang + Math.PI, px = x, py = y;
+    for (let i = 0; i < n; i++) {
+      this.xs[i] = px; this.ys[i] = py;
+      a += 0.035;
+      px += Math.cos(a) * this.seg; py += Math.sin(a) * this.seg;
+    }
+    if (bot) {
+      this.thinkT = rand(0, 0.15);
+      this.skill = rand(0.35, 1);              // reaction speed + caution
+      this.aggr = rand(0, 1);
+      this.wander = this.ang;
+      this.hunt = null; this.huntT = 0; this.huntCd = rand(1, 6);
+      const q = Math.random(); this.persona = q < 0.15 ? 0 : q < 0.6 ? 1 : 2;   // saver / doubler / magnet fan
+    }
+  }
+  layBody(x, y) {
+    let a = this.ang + Math.PI, px = x, py = y;
+    for (let i = 0; i < this.xs.length; i++) {
+      this.xs[i] = px; this.ys[i] = py;
+      a += 0.035;
+      px += Math.cos(a) * this.seg; py += Math.sin(a) * this.seg;
+    }
+  }
+  get x() { return this.xs[0]; }
+  get y() { return this.ys[0]; }
+
+  update(dt) {
+    this.r = radiusFor(this.score);
+    this.seg = this.r * 0.5;
+    for (const t of TIMERS) if (this[t] > 0) this[t] -= dt;
+    if (this.frozen > 0) { this.frozen -= dt; this.boosting = false; return; }
+    const rate = 4.7 / (1 + (this.r - 10) * 0.05) * (this.boosting ? 0.9 : 1);
+    const d = wrap(this.tAng - this.ang);
+    this.ang = wrap(this.ang + clamp(d, -rate * dt, rate * dt));
+
+    const turbo = this.turbo > 0;
+    this.boosting = this.boost && (turbo || this.score > 12);
+    this.speed = this.boosting ? (turbo ? BOOST_SPEED * 1.18 : BOOST_SPEED) : BASE_SPEED;
+    if (this.boosting && !turbo) {
+      const loss = (10 + this.score * 0.004) * dt;
+      this.score -= loss; this.dropAcc += loss * 0.55;
+      if (this.dropAcc >= 1.5) {
+        const n = this.xs.length - 1;
+        addFood(this.xs[n] + rand(-4, 4), this.ys[n] + rand(-4, 4), this.dropAcc, this.skin.hues[0]);
+        this.dropAcc = 0;
+      }
+    }
+    const xs = this.xs, ys = this.ys;
+    xs[0] += Math.cos(this.ang) * this.speed * dt;
+    ys[0] += Math.sin(this.ang) * this.speed * dt;
+
+    // lay down trail points; the body is the trail
+    const want = segsFor(this.score) + 2;
+    let guard = 0;
+    while (guard++ < 12) {
+      const dx = xs[0] - xs[1], dy = ys[0] - ys[1], dist = Math.hypot(dx, dy);
+      if (dist < this.seg) break;
+      const k = this.seg / dist;
+      xs.splice(1, 0, xs[1] + dx * k); ys.splice(1, 0, ys[1] + dy * k);
+      if (xs.length > want) { xs.pop(); ys.pop(); }
+      if (xs.length > want + 1) { xs.pop(); ys.pop(); }
+    }
+  }
+}
+
+function addFood(x, y, v, hue) {
+  const d = Math.hypot(x, y);
+  if (d > R - 12) { const k = (R - 12) / d; x *= k; y *= k; }
+  foods.push({ x, y, v, hue, r: Math.min(15, 4 + Math.sqrt(v) * 2.3), ph: rand(0, TAU), age: 0, eater: null, et: 0, dead: false });
+}
+function spawnNaturalFood() {
+  const a = rand(0, TAU), d = Math.sqrt(Math.random()) * (R - 30);
+  addFood(Math.cos(a) * d, Math.sin(a) * d, Math.random() < 0.12 ? 3 : 1, Math.random() * FH | 0);
+}
+
+function freeSpot(minDist, maxR) {
+  let bx = 0, by = 0;
+  for (let t = 0; t < 30; t++) {
+    const a = rand(0, TAU), d = Math.sqrt(Math.random()) * maxR;
+    bx = Math.cos(a) * d; by = Math.sin(a) * d;
+    let ok = true;
+    for (const s of snakes) {
+      if (Math.hypot(s.x - bx, s.y - by) < minDist) { ok = false; break; }
+    }
+    if (ok && clearance(bx, by, null) > 120) break;
+  }
+  return [bx, by];
+}
+function spawnBot(initial) {
+  const used = new Set(snakes.map(s => s.name));
+  let name; do { name = BOT_NAMES[Math.random() * BOT_NAMES.length | 0]; } while (used.has(name) && used.size < BOT_NAMES.length);
+  const q = Math.random();
+  let score = q < 0.55 ? rand(10, 80) : q < 0.88 ? rand(80, 400) : rand(400, 1300);
+  if (!initial) score = Math.min(score, 500);
+  const [x, y] = freeSpot(450, R * 0.85);
+  snakes.push(new Snake(name, SKINS[Math.random() * SKINS.length | 0], x, y, score, true));
+}
+
+/* ───────────── spatial queries ───────────── */
+function clearance(x, y, self) {
+  let best = 1e9;
+  const cx = cellX(x), cy = cellX(y);
+  for (let oy = -1; oy <= 1; oy++) for (let ox = -1; ox <= 1; ox++) {
+    const cell = bodyGrid[(cy + oy) * GN + cx + ox];
+    for (let i = 0; i < cell.length; i += 3) {
+      const o = cell[i];
+      if (o === self) continue;
+      const dx = cell[i + 1] - x, dy = cell[i + 2] - y;
+      const d = Math.sqrt(dx * dx + dy * dy) - o.r;
+      if (d < best) best = d;
+    }
+  }
+  return best;
+}
+
+/* ───────────── bot brain ───────────── */
+const threats = [];
+function think(s, step) {
+  const hx = s.x, hy = s.y, r = s.r;
+  let desire = s.wander, wantBoost = false, urgency = 8;
+  s.huntT -= step; s.huntCd -= step;
+  botShop(s);
+
+  // 1. food: best value-per-distance, biased to what's ahead
+  let bestF = null, bestV = 0;
+  const cx = cellX(hx), cy = cellX(hy);
+  for (let oy = -3; oy <= 3; oy++) for (let ox = -3; ox <= 3; ox++) {
+    const X = cx + ox, Y = cy + oy;
+    if (X < 0 || Y < 0 || X >= GN || Y >= GN) continue;
+    const cell = foodGrid[Y * GN + X];
+    for (let i = 0; i < cell.length; i++) {
+      const f = cell[i];
+      const dx = f.x - hx, dy = f.y - hy, d = Math.sqrt(dx * dx + dy * dy);
+      const ahead = Math.cos(wrap(Math.atan2(dy, dx) - s.ang));
+      const val = f.v * (1.25 + ahead) / (d + 50);
+      if (val > bestV) { bestV = val; bestF = f; }
+    }
+  }
+  if (bestF) {
+    desire = Math.atan2(bestF.y - hy, bestF.x - hx);
+    if (bestF.v >= 4 && s.score > 60 && s.aggr > 0.35) wantBoost = true;   // race for a dropped trail
+  } else {
+    s.wander = wrap(s.wander + rand(-0.5, 0.5));
+    desire = s.wander;
+  }
+
+  // 1b. keys are worth a detour
+  let kd = 650, kk = null;
+  for (const kx of worldKeys) { const d = Math.hypot(kx.x - hx, kx.y - hy); if (d < kd) { kd = d; kk = kx; } }
+  if (kk) { desire = Math.atan2(kk.y - hy, kk.x - hx); urgency = 11; wantBoost = kd < 320 && s.score > 60 && s.aggr > 0.5; }
+
+  // 2. hunting: get ahead of another snake and cut across its nose
+  if (!s.hunt && s.huntCd <= 0 && s.score > 45 && Math.random() < s.aggr * 0.3) {
+    let bd = 480, tgt = null;
+    for (const o of snakes) {
+      if (o === s || !o.alive) continue;
+      const d = Math.hypot(o.x - hx, o.y - hy);
+      if (d < bd) { bd = d; tgt = o; }
+    }
+    if (tgt) { s.hunt = tgt; s.huntT = rand(2, 4.5); } else s.huntCd = 1.5;
+  }
+  if (s.hunt) {
+    const o = s.hunt, d = Math.hypot(o.x - hx, o.y - hy);
+    if (!o.alive || s.huntT <= 0 || d > 650 || s.score < 25) { s.hunt = null; s.huntCd = rand(3, 9); }
+    else {
+      const lead = d / BOOST_SPEED * o.speed * 1.25 + o.r * 3 + r * 2;
+      const tx = o.x + Math.cos(o.ang) * lead, ty = o.y + Math.sin(o.ang) * lead;
+      desire = Math.atan2(ty - hy, tx - hx);
+      urgency = 12;
+      wantBoost = (s.score > 35 || s.turbo > 0) && d < 420;
+      if (d < 400) botAttack(s);
+    }
+  }
+
+  // 3. stay off the wall
+  const dc = Math.hypot(hx, hy);
+  if (dc > R - 420) { desire = Math.atan2(-hy, -hx) + wrap(s.ang - Math.atan2(-hy, -hx)) * 0.35; urgency = 14; }
+
+  // 4. moving threats: where nearby heads are about to be
+  threats.length = 0;
+  for (const o of snakes) {
+    if (o === s || !o.alive || o === s.hunt) continue;
+    const dx = o.x - hx, dy = o.y - hy;
+    if (dx * dx + dy * dy > 520 * 520) continue;
+    const c = Math.cos(o.ang), sn = Math.sin(o.ang);
+    threats.push(o.x + c * o.speed * 0.22, o.y + sn * o.speed * 0.22, o.r + 8,
+                 o.x + c * o.speed * 0.48, o.y + sn * o.speed * 0.48, o.r + 4);
+  }
+
+  // 5. score candidate headings by feeling ahead along each one
+  const sp = s.boosting ? 1.45 : 1;
+  const margin = r * 0.6 + 12 + s.skill * 16;
+  let best = -1e9, bestA = s.ang, bestPen = 0;
+  for (let k = -6; k <= 6; k++) {
+    const a = s.ang + k * 0.27, ca = Math.cos(a), sa = Math.sin(a);
+    let pen = 0;
+    for (let j = 0; j < 4; j++) {
+      const dist = (r * (1.6 + j * 1.9) + 14 + j * 34) * sp;
+      const px = hx + ca * dist, py = hy + sa * dist;
+      const w = j === 0 ? 120 : j === 1 ? 60 : j === 2 ? 26 : 11;
+      if (Math.hypot(px, py) > R - r - 26) { pen += w * 3; continue; }
+      let c = clearance(px, py, s);
+      for (let i = 0; i < threats.length; i += 3) {
+        const d = Math.hypot(threats[i] - px, threats[i + 1] - py) - threats[i + 2];
+        if (d < c) c = d;
+      }
+      if (c < margin) pen += (margin - c) / margin * w;
+    }
+    const sc = Math.cos(wrap(a - desire)) * urgency - pen - Math.abs(k) * 0.12;
+    if (sc > best) { best = sc; bestA = a; bestPen = pen; }
+  }
+  s.tAng = bestA;
+  if (bestPen > 100) botEmergency(s);
+  // boxed in: sprint for the gap if skilled enough to spot it, otherwise ease off
+  if (bestPen > 60) s.boost = s.skill > 0.6 && s.score > 30 && bestPen < 140;
+  else s.boost = wantBoost && bestPen < 12;
+}
+
+/* ───────────── simulation ───────────── */
+function dropBody(s) {
+  const n = s.xs.length, step = Math.max(2, Math.ceil(n / 150));
+  const count = Math.ceil(n / step), v = (s.score * 0.8 + 6) / count;
+  for (let i = 0; i < n; i += step) {
+    addFood(s.xs[i] + rand(-s.r, s.r) * 0.8, s.ys[i] + rand(-s.r, s.r) * 0.8, v, s.skin.hues[(i / step | 0) % s.skin.hues.length]);
+  }
+}
+function kill(s, killer) {
+  if (!s.alive) return;
+  s.alive = false;
+  if (!(s === player && hasRevive(s))) { dropBody(s); dropKeys(s); }
+  if (killer && killer.alive !== undefined) killer.kills++;
+  if (s === player) onPlayerDeath(killer);
+  else {
+    respawns.push(rand(1.5, 4));
+    if (killer === player && player) toast(`You eliminated <b>${esc(s.name)}</b>`);
+  }
+}
+
+function update(dt) {
+  time += dt;
+
+  // rebuild grids
+  for (let i = 0; i < bodyGrid.length; i++) { if (bodyGrid[i].length) bodyGrid[i].length = 0; if (foodGrid[i].length) foodGrid[i].length = 0; }
+  for (const s of snakes) {
+    const xs = s.xs, ys = s.ys;
+    for (let i = 0; i < xs.length; i++) bodyGrid[cellX(ys[i]) * GN + cellX(xs[i])].push(s, xs[i], ys[i]);
+  }
+  for (const f of foods) if (!f.eater) foodGrid[cellX(f.y) * GN + cellX(f.x)].push(f);
+
+  // decide
+  for (const s of snakes) {
+    if (!s.bot) continue;
+    s.thinkT -= dt;
+    if (s.thinkT <= 0) { const step = 0.05 + (1 - s.skill) * 0.12; s.thinkT = step; think(s, step); }
+  }
+  if (player && player.alive) applyInput(dt);
+
+  // move
+  for (const s of snakes) s.update(dt);
+
+  // collisions: a head touching any other body (or the wall) dies
+  const dying = [];
+  for (const s of snakes) {
+    const hx = s.x, hy = s.y;
+    if (s.ghost > 0) {
+      s.ghost -= dt;
+      const dd = Math.hypot(hx, hy), lim = R - s.r;
+      if (dd > lim) { s.xs[0] *= lim / dd; s.ys[0] *= lim / dd; }
+      continue;
+    }
+    if (Math.hypot(hx, hy) > R - s.r * 0.6) {
+      if (s.shield > 0) { const dd = Math.hypot(hx, hy), lim = R - s.r * 0.7; s.xs[0] *= lim / dd; s.ys[0] *= lim / dd; }
+      else { dying.push(s, null); continue; }
+    }
+    if (s.shield > 0) continue;
+    const cx = cellX(hx), cy = cellX(hy);
+    let hit = null;
+    outer:
+    for (let oy = -1; oy <= 1; oy++) for (let ox = -1; ox <= 1; ox++) {
+      const cell = bodyGrid[(cy + oy) * GN + cx + ox];
+      for (let i = 0; i < cell.length; i += 3) {
+        const o = cell[i];
+        if (o === s || o.ghost > 0) continue;
+        const dx = cell[i + 1] - hx, dy = cell[i + 2] - hy, rr = o.r * 0.88 + s.r * 0.38;
+        if (dx * dx + dy * dy < rr * rr) { hit = o; break outer; }
+      }
+    }
+    if (hit) dying.push(s, hit);
+  }
+  for (let i = 0; i < dying.length; i += 2) kill(dying[i], dying[i + 1]);
+  if (dying.length) snakes = snakes.filter(s => s.alive);
+
+  // eating (a magnet widens the reach to everything in range)
+  for (const s of snakes) {
+    const hx = s.x, hy = s.y, mag = s.magnet > 0, reach = mag ? MAG_R : s.r + 30, span = mag ? Math.ceil(MAG_R / CELL) : 1;
+    const cx = cellX(hx), cy = cellX(hy);
+    for (let oy = -span; oy <= span; oy++) for (let ox = -span; ox <= span; ox++) {
+      const X = cx + ox, Y = cy + oy;
+      if (X < 0 || Y < 0 || X >= GN || Y >= GN) continue;
+      const cell = foodGrid[Y * GN + X];
+      for (let i = 0; i < cell.length; i++) {
+        const f = cell[i];
+        if (f.eater) continue;
+        const dx = f.x - hx, dy = f.y - hy;
+        if (dx * dx + dy * dy < reach * reach) f.eater = s;
+      }
+    }
+  }
+  let anyDead = false;
+  for (const f of foods) {
+    f.age += dt;
+    const e = f.eater;
+    if (!e) continue;
+    if (!e.alive) { f.eater = null; f.et = 0; continue; }
+    f.et += dt;
+    const mag = e.magnet > 0, k = Math.min(1, dt * (mag ? 7 : 16));
+    f.x += (e.x - f.x) * k; f.y += (e.y - f.y) * k;
+    if (f.et > (mag ? 1.2 : 0.28) || Math.hypot(e.x - f.x, e.y - f.y) < e.r * 0.7) { e.score = Math.min(1e15, e.score + f.v); f.dead = true; anyDead = true; }
+  }
+  if (anyDead) foods = foods.filter(f => !f.dead);
+
+  // keys: anyone can grab them; magnets drag them in
+  for (let i = worldKeys.length - 1; i >= 0; i--) {
+    const kx = worldKeys[i];
+    kx.age += dt;
+    for (const s of snakes) {
+      const dx = s.x - kx.x, dy = s.y - kx.y, d = Math.hypot(dx, dy);
+      if (d < s.r + 30) {
+        worldKeys.splice(i, 1);
+        s.keys++;
+        if (s === player) { toast(`Key collected — you have <b>${s.keys}</b>`); updateHud(); }
+        break;
+      }
+      if (s.magnet > 0 && d < MAG_R) { kx.x += dx / d * 400 * dt; kx.y += dy / d * 400 * dt; }
+    }
+  }
+  if (worldKeys.length + keyTimers.length < KEY_COUNT) keyTimers.push(rand(1, 3));
+  for (let i = keyTimers.length - 1; i >= 0; i--) {
+    keyTimers[i] -= dt;
+    if (keyTimers[i] <= 0) { keyTimers.splice(i, 1); spawnKey(); }
+  }
+  for (let i = fx.length - 1; i >= 0; i--) { fx[i].t += dt; if (fx[i].t > 0.7) fx.splice(i, 1); }
+  // upkeep
+  for (let i = 0; i < 6 && foods.length < FOOD_TARGET; i++) spawnNaturalFood();
+  for (let i = respawns.length - 1; i >= 0; i--) {
+    respawns[i] -= dt;
+    if (respawns[i] <= 0) { respawns.splice(i, 1); spawnBot(false); }
+  }
+}
+
+/* ───────────── input ───────────── */
+const input = { ang: 0, boost: false, left: false, right: false, up: false, down: false, keys: false, mouseBoost: false, keyBoost: false, btnBoost: false, steerId: null };
+function applyInput(dt) {
+  if (input.keys) {
+    const kx = (input.right ? 1 : 0) - (input.left ? 1 : 0), ky = (input.down ? 1 : 0) - (input.up ? 1 : 0);
+    if (kx || ky) input.ang = Math.atan2(ky, kx);
+  }
+  player.tAng = input.ang;
+  player.boost = input.mouseBoost || input.keyBoost || input.btnBoost;
+}
+function steerTo(px, py) {
+  const dx = px - vw / 2, dy = py - vh / 2;
+  if (dx * dx + dy * dy > 64) { input.ang = Math.atan2(dy, dx); input.keys = false; }
+}
+canvas.addEventListener('pointermove', e => {
+  if (e.pointerType === 'touch' && e.pointerId !== input.steerId) return;
+  steerTo(e.clientX, e.clientY);
+});
+canvas.addEventListener('pointerdown', e => {
+  if (e.pointerType === 'touch') {
+    if (input.steerId === null) { input.steerId = e.pointerId; steerTo(e.clientX, e.clientY); }
+    else input.mouseBoost = true;         // second finger anywhere = boost
+  } else { steerTo(e.clientX, e.clientY); input.mouseBoost = true; }
+  e.preventDefault();
+});
+const pointerUp = e => {
+  if (e.pointerType === 'touch') {
+    if (e.pointerId === input.steerId) input.steerId = null; else input.mouseBoost = false;
+  } else input.mouseBoost = false;
+};
+window.addEventListener('pointerup', pointerUp);
+window.addEventListener('pointercancel', pointerUp);
+canvas.addEventListener('contextmenu', e => e.preventDefault());
+window.addEventListener('blur', () => { input.mouseBoost = input.keyBoost = input.btnBoost = input.left = input.right = input.up = input.down = false; });
+
+const boostBtn = document.getElementById('boostBtn');
+boostBtn.addEventListener('pointerdown', e => { input.btnBoost = true; boostBtn.classList.add('on'); e.preventDefault(); e.stopPropagation(); });
+['pointerup', 'pointercancel', 'pointerleave'].forEach(t => boostBtn.addEventListener(t, () => { input.btnBoost = false; boostBtn.classList.remove('on'); }));
+
+window.addEventListener('keydown', e => {
+  if (e.target === nickEl) { if (e.key === 'Enter') { if (savedRun) continueRun(); else startGame(); } return; }
+  const k = e.key, d = dirKey(k);
+  if (k === ' ' || k === 'Shift') { input.keyBoost = true; e.preventDefault(); }
+  else if (d) { input[d] = true; input.keys = true; e.preventDefault(); }
+  else if (k === 'p' || k === 'P' || k === 'Escape') setPaused(!paused);
+  else if (k === '1') playerBuy('magnet');
+  else if (k === '2') playerBuy('double');
+  else if (k >= '3' && k <= '7') playerBuy(['inf', 'shield', 'turbo', 'freeze', 'teleport'][k - 3]);
+  else if (k === 'Enter' && !playing) { if (savedRun) continueRun(); else if (fallen && hasRevive(fallen)) revive(); else startGame(); }
+});
+window.addEventListener('keyup', e => {
+  const k = e.key, d = dirKey(k);
+  if (k === ' ' || k === 'Shift') input.keyBoost = false;
+  else if (d) input[d] = false;
+});
+function dirKey(k) {
+  switch (k.length === 1 ? k.toLowerCase() : k) {
+    case 'w': case 'ArrowUp': return 'up';
+    case 's': case 'ArrowDown': return 'down';
+    case 'a': case 'ArrowLeft': return 'left';
+    case 'd': case 'ArrowRight': return 'right';
+  }
+  return null;
+}
+const isTouch = matchMedia('(pointer: coarse)').matches;
+if (isTouch) document.body.classList.add('touch');
+
+/* ───────────── rendering ───────────── */
+let vl = 0, vr = 0, vt = 0, vb = 0;
+function drawSnake(s) {
+  const xs = s.xs, ys = s.ys, n = xs.length, r = s.r;
+  // quick reject: sample the body sparsely against the view
+  let vis = false;
+  const pad = r * 3;
+  for (let i = 0; i < n; i += 6) {
+    if (xs[i] > vl - pad && xs[i] < vr + pad && ys[i] > vt - pad && ys[i] < vb + pad) { vis = true; break; }
+  }
+  if (!vis) return;
+
+  const hx = xs[0], hy = ys[0];
+  const q = 1 - Math.min(1, Math.hypot(hx - xs[1], hy - ys[1]) / s.seg);
+  const sk = s.skin, sprites = sk.sprites, L = sprites.length, band = sk.band;
+  const hr = r * 1.06, d = hr * 2;
+  const ga = s.ghost > 0 ? 0.45 + 0.25 * Math.sin(time * 16) : 1;
+  ctx.globalAlpha = ga;
+
+  const icy = s.frozen > 0;
+  if (s.boosting || icy) {
+    ctx.globalCompositeOperation = 'lighter';
+    const gr = r * 2.4;
+    for (let i = n - 2; i >= 1; i -= 2) {
+      const x = xs[i] + (xs[i + 1] - xs[i]) * q, y = ys[i] + (ys[i + 1] - ys[i]) * q;
+      if (x < vl - gr || x > vr + gr || y < vt - gr || y > vb + gr) continue;
+      ctx.globalAlpha = icy ? 0.55 : 0.3 + 0.22 * Math.sin(time * 11 - i * 0.32);
+      ctx.drawImage(icy ? iceGlow : s.turbo > 0 ? keyGlow : sk.glow, x - gr, y - gr, gr * 2, gr * 2);
+    }
+    ctx.globalAlpha = ga; ctx.globalCompositeOperation = 'source-over';
+  }
+  for (let i = n - 2; i >= 1; i--) {
+    const x = xs[i] + (xs[i + 1] - xs[i]) * q, y = ys[i] + (ys[i + 1] - ys[i]) * q;
+    if (x < vl - hr || x > vr + hr || y < vt - hr || y > vb + hr) continue;
+    ctx.drawImage(sprites[(i / band | 0) % L], x - hr, y - hr, d, d);
+  }
+  // head
+  const hh = r * 1.14;
+  ctx.drawImage(sprites[0], hx - hh, hy - hh, hh * 2, hh * 2);
+  const ca = Math.cos(s.ang), sa = Math.sin(s.ang);
+  const look = wrap(s.tAng - s.ang) * 0.6 + s.ang, lx = Math.cos(look), ly = Math.sin(look);
+  for (let side = -1; side <= 1; side += 2) {
+    const ex = hx + ca * r * 0.42 - sa * side * r * 0.5, ey = hy + sa * r * 0.42 + ca * side * r * 0.5;
+    ctx.fillStyle = '#fff'; ctx.beginPath(); ctx.arc(ex, ey, r * 0.37, 0, TAU); ctx.fill();
+    ctx.fillStyle = '#0b0d14'; ctx.beginPath(); ctx.arc(ex + lx * r * 0.14, ey + ly * r * 0.14, r * 0.21, 0, TAU); ctx.fill();
+  }
+  if (s.shield > 0) {
+    const a = Math.min(1, s.shield / 2) * (0.75 + 0.25 * Math.sin(time * 6));
+    ctx.fillStyle = `rgba(120,220,255,${0.14 * a})`; ctx.strokeStyle = `rgba(190,240,255,${0.85 * a})`; ctx.lineWidth = 3;
+    ctx.beginPath(); ctx.arc(hx, hy, r * 2.3, 0, TAU); ctx.fill(); ctx.stroke();
+  }
+  // name tag
+  const fs = Math.max(13, r * 0.85);
+  ctx.font = `600 ${fs}px Fredoka, system-ui, sans-serif`;
+  ctx.textAlign = 'center';
+  ctx.fillStyle = s === player ? 'rgba(255,230,107,0.9)' : s.inf > 0 ? 'rgba(255,200,80,0.9)' : 'rgba(255,255,255,0.62)';
+  ctx.fillText((s.inf > 0 ? '∞ ' : '') + s.name, hx, hy + r + fs + 4);
+  ctx.globalAlpha = 1;
+}
+
+function render() {
+  const cw = canvas.width, ch = canvas.height;
+  const k = cam.zoom * dpr;
+  ctx.setTransform(k, 0, 0, k, cw / 2 - cam.x * k, ch / 2 - cam.y * k);
+  const hw = cw / 2 / k, hh = ch / 2 / k;
+  vl = cam.x - hw; vr = cam.x + hw; vt = cam.y - hh; vb = cam.y + hh;
+
+  // floor
+  ctx.fillStyle = bgPattern;
+  ctx.fillRect(vl - 2, vt - 2, hw * 2 + 4, hh * 2 + 4);
+
+  // out-of-bounds zone + wall
+  if (Math.hypot(cam.x, cam.y) + Math.hypot(hw, hh) > R - 10) {
+    ctx.beginPath();
+    ctx.rect(vl - 2, vt - 2, hw * 2 + 4, hh * 2 + 4);
+    ctx.arc(0, 0, R, 0, TAU, true);
+    ctx.fillStyle = 'rgba(90,6,22,0.72)'; ctx.fill('evenodd');
+    const pulse = 0.65 + 0.35 * Math.sin(time * 3);
+    ctx.strokeStyle = `rgba(255,60,90,${0.25 * pulse})`; ctx.lineWidth = 34; ctx.beginPath(); ctx.arc(0, 0, R + 6, 0, TAU); ctx.stroke();
+    ctx.strokeStyle = `rgba(255,90,115,${0.75 + 0.25 * pulse})`; ctx.lineWidth = 7; ctx.beginPath(); ctx.arc(0, 0, R, 0, TAU); ctx.stroke();
+  }
+
+  // food: glows first (additive), then cores
+  ctx.globalCompositeOperation = 'lighter';
+  for (const f of foods) {
+    const m = f.r * 3.2;
+    if (f.x < vl - m || f.x > vr + m || f.y < vt - m || f.y > vb + m) continue;
+    const pop = Math.min(1, f.age * 5), tw = 0.8 + 0.2 * Math.sin(time * 4 + f.ph);
+    const g = m * pop * tw;
+    ctx.globalAlpha = 0.55 + 0.25 * tw;
+    ctx.drawImage(foodGlow[f.hue], f.x - g, f.y - g, g * 2, g * 2);
+  }
+  ctx.globalAlpha = 1; ctx.globalCompositeOperation = 'source-over';
+  for (const f of foods) {
+    const m = f.r;
+    if (f.x < vl - m || f.x > vr + m || f.y < vt - m || f.y > vb + m) continue;
+    const c = f.r * Math.min(1, f.age * 5) * (f.eater ? Math.max(0.45, 1 - f.et * 1.6) : 1);
+    const bob = Math.sin(time * 2.2 + f.ph) * 1.6;
+    ctx.drawImage(foodCore[f.hue], f.x - c, f.y - c + bob, c * 2, c * 2);
+  }
+
+  // keys
+  for (const kx of worldKeys) {
+    if (kx.x < vl - 90 || kx.x > vr + 90 || kx.y < vt - 90 || kx.y > vb + 90) continue;
+    const pop = Math.min(1, kx.age * 3), pulse = 0.85 + 0.15 * Math.sin(time * 3 + kx.ph);
+    const g = 78 * pop * pulse, sz = 30 * pop, bob = Math.sin(time * 2.4 + kx.ph) * 5;
+    ctx.globalCompositeOperation = 'lighter'; ctx.globalAlpha = 0.8;
+    ctx.drawImage(keyGlow, kx.x - g, kx.y - g, g * 2, g * 2);
+    ctx.globalAlpha = 1; ctx.globalCompositeOperation = 'source-over';
+    ctx.drawImage(keySprite, kx.x - sz, kx.y - sz + bob, sz * 2, sz * 2);
+  }
+
+  // shop effects
+  for (const f of fx) {
+    const q = f.t / 0.7;
+    ctx.strokeStyle = `rgba(${f.c},${(1 - q) * 0.8})`; ctx.lineWidth = 10 * (1 - q) + 2;
+    ctx.beginPath(); ctx.arc(f.x, f.y, f.r * (0.1 + 0.9 * Math.sqrt(q)), 0, TAU); ctx.stroke();
+  }
+  // magnet fields
+  for (const s of snakes) {
+    if (!(s.magnet > 0)) continue;
+    if (s.x < vl - MAG_R || s.x > vr + MAG_R || s.y < vt - MAG_R || s.y > vb + MAG_R) continue;
+    const fade = Math.min(1, s.magnet / 3);
+    for (let j = 0; j < 3; j++) {
+      const ph = (time * 0.7 + j / 3) % 1;
+      ctx.strokeStyle = `rgba(110,220,255,${(0.08 + ph * 0.3) * fade})`; ctx.lineWidth = 3;
+      ctx.beginPath(); ctx.arc(s.x, s.y, MAG_R * (1 - ph * 0.9), 0, TAU); ctx.stroke();
+    }
+  }
+
+  // snakes: small under big, player on top
+  drawList.length = 0;
+  for (const s of snakes) if (s !== player) drawList.push(s);
+  drawList.sort((a, b) => a.score - b.score);
+  for (const s of drawList) drawSnake(s);
+  if (player && player.alive) drawSnake(player);
+
+  ctx.setTransform(1, 0, 0, 1, 0, 0);
+  ctx.fillStyle = vignette; ctx.fillRect(0, 0, cw, ch);
+}
+const drawList = [];
+
+/* ───────────── HUD ───────────── */
+const $ = id => document.getElementById(id);
+const boardEl = $('board'), boardList = $('boardList'), statsEl = $('stats'), miniEl = $('mini'), mctx = miniEl.getContext('2d');
+const lenEl = $('len'), rankEl = $('rank'), killsEl = $('kills'), keysHud = $('keysHud'), reviveBtn = $('revive'), shopEl = $('shop'), pauseBtn = $('pauseBtn'), pauseEl = $('pause'), toastsEl = $('toasts');
+const menuEl = $('menu'), nickEl = $('nick'), resultEl = $('result'), skinsEl = $('skins'), playBtn = $('play');
+const esc = t => t.replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+
+function toast(html) {
+  const d = document.createElement('div'); d.className = 'toast'; d.innerHTML = html;
+  toastsEl.appendChild(d);
+  while (toastsEl.children.length > 3) toastsEl.firstChild.remove();
+  setTimeout(() => d.remove(), 2700);
+}
+const clock = t => (t / 60 | 0) + ':' + String(Math.floor(t % 60)).padStart(2, '0');
+function playerBuy(item) {
+  if (!playing || paused || !player || !player.alive) return;
+  const r = buy(player, item);
+  if (r === 'ok') toast({
+    magnet: '🧲 <b>Magnet</b> on for 30 seconds',
+    double: `×2 — length doubled to <b>${fmt(player.score)}</b>`,
+    inf: '∞ <b>Infinite keys</b> for 10 minutes — the shop is free',
+    shield: '🛡️ <b>Shield</b> up for 12 seconds',
+    turbo: '⚡ <b>Turbo</b> — boosting is free for 20 seconds',
+    freeze: '❄️ <b>Freeze!</b> Nearby snakes are stuck for 3 seconds',
+    teleport: '🌀 <b>Teleported</b> somewhere quieter',
+  }[item]);
+  else if (r === 'poor') toast(`Need <b>${PRICE[item] - player.keys}</b> more ${PRICE[item] - player.keys === 1 ? 'key' : 'keys'}`);
+  else if (r === 'cooldown') toast(`Recharges in <b>${Math.ceil(player[COOL[item]])}s</b>`);
+  updateHud();
+}
+function setPaused(v) {
+  if (v && (!playing || !player || !player.alive)) return;
+  paused = v;
+  pauseEl.classList.toggle('hidden', !v);
+  input.mouseBoost = input.keyBoost = input.btnBoost = false;
+}
+function updateHud() {
+  const sorted = snakes.slice().sort((a, b) => b.score - a.score);
+  let html = '';
+  for (let i = 0; i < Math.min(10, sorted.length); i++) {
+    const s = sorted[i];
+    html += `<li class="${s === player ? 'me' : ''}"><span class="n">${i + 1}.</span><span class="nm">${s.inf > 0 ? "∞ " : ""}${esc(s.name)}</span><span class="sc">${fmt(s.score)}</span></li>`;
+  }
+  if (player && player.alive) {
+    const rank = sorted.indexOf(player) + 1;
+    if (rank > 10) html += `<li class="me"><span class="n">${rank}.</span><span class="nm">${esc(player.name)}</span><span class="sc">${fmt(player.score)}</span></li>`;
+    lenEl.textContent = fmt(player.score);
+    rankEl.textContent = `Rank ${rank} of ${sorted.length}`;
+    killsEl.textContent = player.kills + (player.kills === 1 ? ' kill' : ' kills');
+    keysHud.textContent = player.inf > 0 ? '🔑 ∞ ' + clock(player.inf) : '🔑 ' + player.keys;
+    const free = player.inf > 0;
+    if (player.keys !== bank) { bank = player.keys; try { localStorage.setItem('sa_keys', bank); } catch (e) {} }
+    bankInf = player.inf;
+    for (const el of shopEl.children) {
+      const it = el.dataset.item, pr = el.querySelector('.pr');
+      let txt = free ? 'FREE' : '🔑 ' + PRICE[it], on = false, off = !free && player.keys < PRICE[it];
+      if (ACTIVE[it] && player[ACTIVE[it]] > 0) { txt = Math.ceil(player[ACTIVE[it]]) + 's'; on = true; off = false; }
+      if (COOL[it] && player[COOL[it]] > 0) { txt = 'wait ' + Math.ceil(player[COOL[it]]) + 's'; off = true; }
+      if (it === 'inf' && free) { txt = clock(player.inf); on = true; off = false; }
+      pr.textContent = txt; el.classList.toggle('active', on); el.classList.toggle('off', off);
+    }
+  }
+  boardList.innerHTML = html;
+}
+function drawMini() {
+  const S = miniEl.width, c = S / 2, k = (c - 8) / R;
+  mctx.clearRect(0, 0, S, S);
+  mctx.strokeStyle = 'rgba(255,90,115,0.5)'; mctx.lineWidth = 2;
+  mctx.beginPath(); mctx.arc(c, c, c - 8, 0, TAU); mctx.stroke();
+  for (const s of snakes) {
+    if (s === player) continue;
+    const col = s.skin.cols.find(q => q[1] > 20) || [0, 0, 80];
+    mctx.fillStyle = `hsla(${col[0]},${col[1]}%,62%,0.85)`;
+    const sz = 2 + s.r * 0.08;
+    for (let i = 0; i < s.xs.length; i += 14) mctx.fillRect(c + s.xs[i] * k - sz / 2, c + s.ys[i] * k - sz / 2, sz, sz);
+  }
+  for (const kx of worldKeys) {
+    mctx.fillStyle = '#ffd23f'; mctx.beginPath(); mctx.arc(c + kx.x * k, c + kx.y * k, 4 + Math.sin(time * 4 + kx.ph), 0, TAU); mctx.fill();
+  }
+  if (player && player.alive) {
+    mctx.fillStyle = '#fff';
+    for (let i = 0; i < player.xs.length; i += 10) mctx.fillRect(c + player.xs[i] * k - 1.5, c + player.ys[i] * k - 1.5, 3, 3);
+    mctx.beginPath(); mctx.arc(c + player.x * k, c + player.y * k, 5, 0, TAU); mctx.fill();
+    mctx.strokeStyle = 'rgba(255,255,255,0.5)'; mctx.lineWidth = 1.5;
+    mctx.beginPath(); mctx.arc(c + player.x * k, c + player.y * k, 9 + Math.sin(time * 4) * 2, 0, TAU); mctx.stroke();
+  }
+}
+
+/* ───────────── menu / lifecycle ───────────── */
+let bank = 0, bankInf = 0, paused = false, playing = false, selSkin = 0, best = 0, deathTimer = -1, lastStats = null, fallen = null;
+try { bank = Math.max(0, Math.floor(+localStorage.getItem('sa_keys') || 0)); best = +localStorage.getItem('sa_best') || 0; nickEl.value = localStorage.getItem('sa_nick') || ''; selSkin = clamp(+localStorage.getItem('sa_skin') || 0, 0, SKINS.length - 1); } catch (e) {}
+
+SKINS.forEach((sk, i) => {
+  const c = mk(116, 68); c.title = sk.name;
+  const g = c.getContext('2d');
+  for (let j = 7; j >= 0; j--) {
+    const x = 20 + j * 11, y = 34 + Math.sin(j * 0.9) * 7;
+    g.drawImage(sk.sprites[(j / Math.max(1, Math.round(sk.band / 3)) | 0) % sk.sprites.length], x - 15, y - 15, 30, 30);
+  }
+  g.fillStyle = '#fff'; g.beginPath(); g.arc(101, 27, 5, 0, TAU); g.arc(101, 41, 5, 0, TAU); g.fill();
+  g.fillStyle = '#0b0d14'; g.beginPath(); g.arc(103, 27, 2.6, 0, TAU); g.arc(103, 41, 2.6, 0, TAU); g.fill();
+  if (i === selSkin) c.classList.add('sel');
+  c.addEventListener('click', () => {
+    selSkin = i;
+    [...skinsEl.children].forEach((el, j) => el.classList.toggle('sel', j === i));
+  });
+  skinsEl.appendChild(c);
+});
+$('help').innerHTML = isTouch
+  ? 'Drag to steer · hold <kbd>BOOST</kbd> or a second finger to sprint<br>Gold keys revive you and buy power-ups'
+  : 'Steer with the mouse or <kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> · hold <kbd>click</kbd> or <kbd>Space</kbd> to boost<br>Boosting burns length. Make others run into you.<br>Gold keys revive you and buy power-ups <kbd>1</kbd>–<kbd>7</kbd> · <kbd>P</kbd> pauses';
+
+function enterPlay() {
+  playing = true; deathTimer = -1;
+  input.mouseBoost = input.keyBoost = input.btnBoost = false; input.keys = false;
+  nickEl.blur();
+  menuEl.classList.add('hidden');
+  [boardEl, statsEl, miniEl, boostBtn, shopEl, pauseBtn].forEach(e => e.classList.remove('hidden'));
+  updateHud();
+}
+function revive() {
+  if (playing || !fallen || !hasRevive(fallen)) return;
+  const s = fallen; fallen = null;
+  if (!(s.inf > 0)) s.keys--;
+  s.alive = true; s.ghost = 3; s.boost = false;
+  if (Math.hypot(s.x, s.y) > R - 200) s.ang = Math.atan2(-s.y, -s.x);   // died on the wall: turn back in
+  s.tAng = input.ang = s.ang;
+  player = s; snakes.push(s);
+  cam.x = s.x; cam.y = s.y;
+  enterPlay();
+  toast(s.inf > 0 ? 'Revived — free with <b>infinite keys</b>' : `Revived — <b>${s.keys}</b> ${s.keys === 1 ? 'key' : 'keys'} left`);
+}
+/* ── save & continue: the run in progress lives in this browser's storage ── */
+const contBtn = $('cont');
+const RUN_TIMERS = ['inf', 'magnet', 'shield', 'turbo', 'dblCd', 'frzCd', 'tpCd'];
+let savedRun = null;
+function saveRun() {
+  if (!playing || !player || !player.alive) return;
+  const run = { v: 1, name: player.name, skin: SKINS.indexOf(player.skin), score: player.score, kills: player.kills, x: player.x, y: player.y, ang: player.ang };
+  for (const t of RUN_TIMERS) run[t] = Math.max(0, player[t]);
+  try { localStorage.setItem('sa_run', JSON.stringify(run)); localStorage.setItem('sa_keys', player.keys); localStorage.setItem('sa_inf', Math.max(0, player.inf)); } catch (e) {}
+}
+function clearRun() { savedRun = null; contBtn.style.display = 'none'; try { localStorage.removeItem('sa_run'); } catch (e) {} }
+function loadRun() {
+  try {
+    bankInf = Math.max(0, +localStorage.getItem('sa_inf') || 0);
+    const r = JSON.parse(localStorage.getItem('sa_run') || 'null');
+    if (!r || !isFinite(r.score) || r.score < 1 || !isFinite(r.x) || !isFinite(r.y) || !isFinite(r.ang)) return;
+    savedRun = r; bankInf = Math.max(0, +r.inf || 0);
+    contBtn.style.display = 'block';
+    contBtn.innerHTML = `Continue<small>Length ${fmt(r.score)} · ${r.kills | 0} ${(r.kills | 0) === 1 ? 'kill' : 'kills'} · right where you left off</small>`;
+    playBtn.classList.add('alt'); playBtn.textContent = 'New game';
+  } catch (e) {}
+}
+function continueRun() {
+  if (playing || !savedRun) return;
+  const r = savedRun;
+  let x = r.x, y = r.y;
+  const d = Math.hypot(x, y);
+  if (d > R - 120) { x *= (R - 120) / d; y *= (R - 120) / d; }
+  player = new Snake(String(r.name || 'You').slice(0, 14), SKINS[r.skin] || SKINS[selSkin], x, y, Math.min(1e15, r.score), false);
+  player.ang = player.tAng = input.ang = d > R - 300 ? Math.atan2(-y, -x) : r.ang;
+  player.layBody(x, y);
+  player.keys = bank; player.kills = r.kills | 0;
+  for (const t of RUN_TIMERS) player[t] = Math.max(0, +r[t] || 0);
+  player.ghost = 3;                       // a moment of safety while you get your bearings
+  snakes.push(player);
+  cam.x = x; cam.y = y;
+  clearRun();
+  playBtn.classList.remove('alt');
+  enterPlay();
+  saveRun();
+}
+contBtn.addEventListener('click', continueRun);
+window.addEventListener('pagehide', saveRun);
+
+function startGame() {
+  if (playing) return;
+  clearRun();
+  if (fallen) { dropBody(fallen); fallen = null; }
+  const name = nickEl.value.trim() || 'You';
+  try { localStorage.setItem('sa_nick', nickEl.value.trim()); localStorage.setItem('sa_skin', selSkin); } catch (e) {}
+  const [x, y] = freeSpot(700, R * 0.6);
+  player = new Snake(name, SKINS[selSkin], x, y, 10, false);
+  player.keys = bank; player.inf = bankInf;        // your keys carry over between runs
+  // face the centre so nobody spawns driving into the wall
+  player.ang = player.tAng = input.ang = Math.atan2(-y, -x);
+  snakes.push(player);
+  cam.x = x; cam.y = y;
+  enterPlay();
+}
+function onPlayerDeath(killer) {
+  const sc = player.score | 0;
+  lastStats = { score: sc, kills: player.kills, by: killer ? killer.name : null, record: sc > best };
+  if (sc > best) { best = sc; try { localStorage.setItem('sa_best', best); } catch (e) {} }
+  deathTimer = 1.3;
+  try { localStorage.removeItem('sa_run'); localStorage.setItem('sa_inf', Math.max(0, player.inf)); } catch (e) {}
+  bank = player.keys; bankInf = player.inf;
+  try { localStorage.setItem('sa_keys', bank); } catch (e) {}
+}
+function showMenu() {
+  playing = false; fallen = player; player = null;
+  const canRevive = fallen && hasRevive(fallen);
+  reviveBtn.style.display = canRevive ? 'block' : 'none';
+  if (canRevive) reviveBtn.innerHTML = `🔑 Revive here<small>${fallen.inf > 0 ? 'Free with infinite keys' : 'Uses 1 key · you have ' + fallen.keys} · keep your length</small>`;
+  playBtn.classList.toggle('alt', !!canRevive);
+  showBank();
+  if (lastStats) {
+    resultEl.style.display = 'block';
+    resultEl.innerHTML = `<div>${lastStats.by ? 'You ran into <b>' + esc(lastStats.by) + '</b>' : 'You hit the wall'}</div>
+      <div class="big">${fmt(lastStats.score)}</div>
+      <div class="line">${lastStats.record ? 'New personal best!' : 'Best ' + fmt(best)} · ${lastStats.kills} ${lastStats.kills === 1 ? 'kill' : 'kills'}</div>`;
+    playBtn.textContent = canRevive ? 'Start over' : 'Play again';
+  }
+  menuEl.classList.remove('hidden');
+  [statsEl, miniEl, boostBtn, shopEl, pauseBtn].forEach(e => e.classList.add('hidden'));
+  setPaused(false);
+}
+const bankEl = $('bank');
+function showBank() { bankEl.textContent = bankInf > 0 ? '🔑 Infinite keys — ' + clock(bankInf) + ' left' : bank > 0 ? `🔑 ${bank} ${bank === 1 ? 'key' : 'keys'} saved` : ''; bankEl.style.display = bankEl.textContent ? 'block' : 'none'; }
+loadRun();
+showBank();
+playBtn.addEventListener('click', startGame);
+reviveBtn.addEventListener('click', revive);
+for (const el of shopEl.children) el.addEventListener('pointerdown', e => { e.preventDefault(); e.stopPropagation(); playerBuy(el.dataset.item); });
+pauseBtn.addEventListener('pointerdown', e => { e.preventDefault(); e.stopPropagation(); setPaused(true); });
+$('resume').addEventListener('click', () => setPaused(false));
+document.addEventListener('visibilitychange', () => { if (document.hidden) { saveRun(); setPaused(true); } });
+
+/* ───────────── main loop ───────────── */
+for (let i = 0; i < FOOD_TARGET; i++) spawnNaturalFood();
+for (const f of foods) f.age = 1;
+for (let i = 0; i < BOT_COUNT; i++) spawnBot(true);
+for (let i = 0; i < KEY_COUNT; i++) spawnKey();
+
+let last = performance.now(), hudT = 0, frame = 0, spectate = null, saveT = 0;
+function tick(now) {
+  requestAnimationFrame(tick);
+  let dt = (now - last) / 1000; last = now;
+  if (dt > 0.25) dt = 0.016;            // tab was in the background
+  dt = Math.min(dt, 1 / 30);
+  if (!paused) update(dt);
+
+  // camera
+  let targetZoom;
+  const fit = clamp(Math.max(vw, vh) / 1350, 0.5, 1.6);
+  if (player && player.alive) {
+    cam.x = player.x; cam.y = player.y;
+    targetZoom = fit * 1.12 / (1 + (player.r - 10) * 0.032);
+  } else if (!playing && fallen && hasRevive(fallen)) {
+    targetZoom = cam.zoom;            // hold the camera on the spot you can revive at
+  } else if (!playing) {
+    if (!spectate || !spectate.alive || frame % 900 === 0) spectate = snakes.reduce((a, b) => (!a || b.score > a.score) ? b : a, null);
+    if (spectate) { cam.x += (spectate.x - cam.x) * Math.min(1, dt * 2.5); cam.y += (spectate.y - cam.y) * Math.min(1, dt * 2.5); }
+    targetZoom = fit * 0.8;
+  } else targetZoom = cam.zoom;
+  cam.zoom += (targetZoom - cam.zoom) * Math.min(1, dt * 3);
+
+  if (deathTimer > 0) { deathTimer -= dt; if (deathTimer <= 0) showMenu(); }
+
+  render();
+  frame++;
+  hudT -= dt;
+  if (hudT <= 0) { hudT = 0.3; updateHud(); }
+  saveT -= dt;
+  if (saveT <= 0) { saveT = 2; saveRun(); }
+  if (playing && frame % 4 === 0) drawMini();
+}
+cam.zoom = clamp(Math.max(vw, vh) / 1350, 0.5, 1.6) * 0.8;
+boardEl.classList.remove('hidden');
+requestAnimationFrame(tick);
+
+})();
+</script>
+</body>
+</html>

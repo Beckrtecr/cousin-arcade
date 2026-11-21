@@ -29,4 +29,11 @@ const GAMES = [
     thumbnail: "games/one-button-cup/thumb.svg",
     color: "#ffc83a",
   },
+  {
+    title: "Serpent Arena",
+    maker: "Cousin Crew",
+    folder: "games/serpent-arena",
+    thumbnail: "games/serpent-arena/thumb.svg",
+    color: "#2fd774",
+  },
 ];

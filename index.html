@@ -3,6 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
+<meta http-equiv="Cache-Control" content="no-cache">
 <title>Cousin Arcade</title>
 <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=Rubik:wght@400;600;800&display=swap" rel="stylesheet">
 <style>
@@ -162,7 +163,8 @@
     <iframe id="frame" allow="fullscreen; autoplay; gamepad"></iframe>
   </div>
 
-<script src="games-list.js"></script>
+<!-- Load the game list fresh every time, so newly added games show up right away -->
+<script>document.write('<script src="games-list.js?v=' + Date.now() + '"><\/script>');</script>
 <script>
   const grid = document.getElementById("grid");
   const player = document.getElementById("player");
@@ -200,7 +202,7 @@
 
   function openGame(game) {
     playing.textContent = game.title;
-    frame.src = game.folder.replace(/\/$/, "") + "/index.html";
+    frame.src = game.folder.replace(/\/$/, "") + "/index.html?v=" + Date.now(); // always the newest version
     player.classList.add("open");
     document.body.style.overflow = "hidden";
     // Go true full screen when the browser allows it
