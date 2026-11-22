@@ -741,7 +741,7 @@ function placeKickoff(toward) {
 function enterGameUI() {
   document.getElementById("menu").hidden = true; document.getElementById("over").hidden = true; document.getElementById("pause").hidden = true;
   document.getElementById("pauseBtn").classList.toggle("on", opts.mode !== "online");
-  document.getElementById("touch").classList.toggle("on", isTouch && opts.mode !== "2p"); // 2 players get their own pads (bottom of file)
+  document.getElementById("touch").classList.toggle("on", isTouch && opts.mode !== "2p" && !(window.CousinMode && CousinMode.touchPad)); // mobile mode uses the joystick pads at the bottom of the file
 }
 function startMatch() {
   if (opts.mode === "online" && !(NET.role === "host" && NET.open)) return;
@@ -1521,7 +1521,7 @@ function loop(now) {
 fit(); refreshMenu();
 if (document.fonts && document.fonts.ready) document.fonts.ready.then(() => refreshMenu());
 requestAnimationFrame(loop);
-// mobile mode, 2 players on one screen: each player gets their own joystick and buttons
+// mobile mode: joystick + buttons for each player on this screen
 if (window.CousinMode && CousinMode.isMobile()) {
   // mobile controls must never break the game itself
   try {
@@ -1533,6 +1533,13 @@ if (window.CousinMode && CousinMode.isMobile()) {
     players: [pad(0, "P1", "#e04848"), pad(1, "P2", "#3d8bff")],
     count: () => 2,
     visible: () => opts.mode === "2p" && state === "play",
+  });
+  // one player (vs CPU or online): joystick on the left (push up to jump), KICK / SHOOT / ★ on the right
+  CousinMode.touchPad({
+    stick: { left: BIND[0].left[0], right: BIND[0].right[0], up: BIND[0].jump[0] },
+    buttons: [{ label: "SHOOT", code: BIND[0].roll[0], big: true }, { label: "KICK", code: BIND[0].chip[0], big: true },
+              { label: "★", code: BIND[0].super[0] }],
+    visible: () => opts.mode !== "2p" && state === "play",
   });
 } catch (err) { console.error("mobile controls:", err); }
 }
