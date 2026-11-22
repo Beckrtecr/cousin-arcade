@@ -683,7 +683,7 @@ function startMatch() {
   state = "play";
   document.getElementById("menu").hidden = true; document.getElementById("over").hidden = true;
   document.getElementById("pauseBtn").classList.add("on");
-  document.getElementById("touch").classList.toggle("on", isTouch);
+  document.getElementById("touch").classList.toggle("on", isTouch && opts.mode === "cpu"); // 2 players get their own pads below
   sfx.whistle();
   showBanner("KICK OFF!", "#ffffff", "#2a3570", 80);
 }
@@ -1247,6 +1247,18 @@ function loop(now) {
 fit(); refreshMenu();
 if (document.fonts && document.fonts.ready) document.fonts.ready.then(() => refreshMenu());
 requestAnimationFrame(loop);
+// mobile mode, 2 players on one screen: each player gets their own joystick and buttons
+if (window.CousinMode && CousinMode.isMobile()) {
+  const pad = (side, name, color) => ({ name, color,
+    stick: { left: BIND[side].left[0], right: BIND[side].right[0] },
+    buttons: [{ label: "▲", code: BIND[side].jump[0] }, { label: "SHOT", code: BIND[side].roll[0] },
+              { label: "CHIP", code: BIND[side].chip[0] }, { label: "★", code: BIND[side].super[0] }] });
+  CousinMode.multiPad({
+    players: [pad(0, "P1", "#e04848"), pad(1, "P2", "#3d8bff")],
+    count: () => 2,
+    visible: () => opts.mode === "2p" && state === "play",
+  });
+}
 </script>
 </body>
 </html>

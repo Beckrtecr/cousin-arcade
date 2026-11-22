@@ -17,6 +17,11 @@
 //        });
 //      </script>
 //
+//  Local multiplayer (several people on one screen)? Use CousinMode.multiPad({
+//    players: [ { name: "P1", color: "#e33", stick: {...}, buttons: [...] }, { name: "P2", ... } ],
+//    count: () => numberOfHumanPlayers, visible: () => playing });
+//  Each player gets their own small joystick and buttons along the bottom.
+//
 //  The pad only appears in mobile mode. It presses the game's normal keyboard
 //  keys for you, so the game itself does not need to change.
 // ===============================================
@@ -97,6 +102,14 @@
       ".cm-btn{pointer-events:auto;touch-action:none;width:68px;height:68px;border-radius:50%;display:grid;place-items:center;font-weight:800;font-size:13px;letter-spacing:.03em;color:#fff;text-shadow:0 1px 2px rgba(0,0,0,.6);background:rgba(255,255,255,.18);border:2px solid rgba(255,255,255,.45);box-shadow:0 0 0 2px rgba(0,0,0,.15)}" +
       ".cm-btn.big{width:84px;height:84px;font-size:15px}" +
       ".cm-btn.on{background:rgba(255,255,255,.48);transform:scale(.94)}" +
+      ".cm-cluster{position:absolute;bottom:calc(8px + env(safe-area-inset-bottom,0px));display:flex;align-items:flex-end;gap:6px;padding:6px;border-radius:18px;background:rgba(0,0,0,.12);border:2px solid var(--pc,rgba(255,255,255,.35));pointer-events:none}" +
+      ".cm-cluster[hidden]{display:none}" +
+      ".cm-cluster>*{pointer-events:auto;touch-action:none}" +
+      ".cm-cluster .cm-stick{position:relative;left:auto;bottom:auto;width:96px;height:96px}" +
+      ".cm-cluster .cm-knob{width:42px;height:42px;margin:-21px 0 0 -21px}" +
+      ".cm-cluster .cm-grid{display:grid;grid-template-columns:repeat(2,50px);gap:6px;pointer-events:none}" +
+      ".cm-cluster .cm-btn{width:50px;height:50px;font-size:11px}" +
+      ".cm-cluster .cm-tag{position:absolute;top:-11px;left:12px;padding:1px 7px;border-radius:8px;font-size:11px;font-weight:800;color:#fff;background:var(--pc,#555);pointer-events:none}" +
       ".cm-top{position:absolute;top:calc(8px + env(safe-area-inset-top,0px));right:calc(8px + env(safe-area-inset-right,0px));width:44px;height:44px;font-size:16px}";
     (document.head || document.documentElement).appendChild(s);
   }
@@ -203,8 +216,59 @@
     return api;
   }
 
+  // Several players on one screen: each gets a small joystick + buttons in their colour.
+  // opts: { players: [ { name, color, stick, buttons }, ... ], count: () => how many humans, visible: () => bool }
+  // With one human it falls back to the big single-player pad for players[0].
+  function multiPad(opts) {
+    if (!isMobile() && !opts.always) return null;
+    var players = opts.players || [];
+    var count = opts.count || function () { return players.length; };
+    var visible = opts.visible || function () { return true; };
+    touchPad({ stick: players[0].stick, buttons: (players[0].buttons || []).map(function (b) { var c = {}; for (var k in b) c[k] = b[k]; c.big = c.big !== false && (b.big || false); return c; }),
+      topButtons: opts.topButtons, always: opts.always, visible: function () { return visible() && count() <= 1; } });
+    function build() {
+      addStyle();
+      var pad = document.createElement("div"); pad.className = "cm-pad"; pad.hidden = true;
+      var clusters = players.map(function (pl) {
+        var c = document.createElement("div"); c.className = "cm-cluster";
+        if (pl.color) c.style.setProperty("--pc", pl.color);
+        if (pl.name) { var t = document.createElement("div"); t.className = "cm-tag"; t.textContent = pl.name; c.appendChild(t); }
+        var st = pl.stick ? makeStick(pl.stick, c) : null;
+        var g = document.createElement("div"); g.className = "cm-grid"; c.appendChild(g);
+        (pl.buttons || []).forEach(function (b) { makeButton(b, g); });
+        pad.appendChild(c);
+        return { el: c, stick: st, keys: [].concat(pl.stick ? [pl.stick.left, pl.stick.right, pl.stick.up, pl.stick.down] : [], (pl.buttons || []).map(function (b) { return b.code; })).filter(Boolean) };
+      });
+      document.body.appendChild(pad);
+      var lastN = -1, shown = false;
+      function releaseCluster(c) {
+        if (c.stick) c.stick.reset();
+        c.keys.forEach(function (k) { if (down[k]) { down[k] = 0; send("keyup", k); } });
+      }
+      (function loop() {
+        var n = Math.min(players.length, count() || 0);
+        var v = visible() && n > 1;
+        if (v !== shown) { shown = v; pad.hidden = !v; if (!v) clusters.forEach(releaseCluster); }
+        if (v && n !== lastN) {
+          lastN = n;
+          clusters.forEach(function (c, i) {
+            var on = i < n; if (!on && !c.el.hidden) releaseCluster(c);
+            c.el.hidden = !on;
+            c.el.style.left = c.el.style.right = ""; c.el.style.transform = "";
+            if (i === 0) c.el.style.left = "calc(8px + env(safe-area-inset-left,0px))";
+            else if (i === n - 1) c.el.style.right = "calc(8px + env(safe-area-inset-right,0px))";
+            else { c.el.style.left = "50%"; c.el.style.transform = "translateX(-50%)"; }
+          });
+        }
+        requestAnimationFrame(loop);
+      })();
+    }
+    if (document.body) build(); else document.addEventListener("DOMContentLoaded", build);
+    return true;
+  }
+
   function isMobile() { return get() === "mobile"; }
 
-  window.CousinMode = { get: get, set: set, isMobile: isMobile, press: press, release: release, tap: tap, touchPad: touchPad };
+  window.CousinMode = { get: get, set: set, isMobile: isMobile, press: press, release: release, tap: tap, touchPad: touchPad, multiPad: multiPad };
   if (document.documentElement) document.documentElement.classList.toggle("mobile-mode", isMobile());
 })();
