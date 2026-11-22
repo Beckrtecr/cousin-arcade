@@ -91,18 +91,16 @@
     </div>
     <div class="guide pc-only">
       <div><b style="color:#1f9a35">Green tank</b>
-        <kbd>W</kbd> <kbd>S</kbd> drive forward / back<br>
-        <kbd>A</kbd> <kbd>D</kbd> turn<br>
-        <kbd>Space</kbd> fire</div>
+        <kbd>W</kbd> <kbd>A</kbd> <kbd>S</kbd> <kbd>D</kbd> move up / left / down / right<br>
+        Hold two keys to go diagonally<br><kbd>Space</kbd> fires the way you face</div>
       <div><b style="color:#1f6fe0">Blue tank</b>
-        <kbd>↑</kbd> <kbd>↓</kbd> drive forward / back<br>
-        <kbd>←</kbd> <kbd>→</kbd> turn<br>
-        <kbd>Enter</kbd> fire</div>
+        <kbd>↑</kbd> <kbd>←</kbd> <kbd>↓</kbd> <kbd>→</kbd> move up / left / down / right<br>
+        Hold two keys to go diagonally<br><kbd>Enter</kbd> fires the way you face</div>
     </div>
     <div class="guide touch-only">
       <div><b>Touch controls</b>
         Green uses the joystick on the left, Blue uses the one on the right.
-        Push up to drive, down to back up, sideways to turn. Tap <b style="display:inline">FIRE</b> to shoot.
+        Push the stick the way you want to go and your tank drives that way. Tap <b style="display:inline">FIRE</b> to shoot.
         Turn your phone sideways for a bigger arena.</div>
     </div>
     <p class="rules">Shells bounce off walls 3 times. Careful: after one bounce your own shells can hit you!
@@ -142,9 +140,8 @@ const CONFIG = {
   },
   tank: {
     radius: 15,             // collision size (tanks are round-ish)
-    speed: 125,             // forward speed
-    reverseFactor: 0.65,    // backing up is a bit slower
-    turnSpeed: 3.3,         // radians per second
+    speed: 125,             // driving speed
+    turnSpeed: 14,          // how fast the tank swings round to face where it is going (radians per second)
   },
   shell: {
     speed: 270,
@@ -185,9 +182,9 @@ const CONFIG = {
   },
   players: [
     { defaultName: "Green", color: "#3fcf4f", dark: "#1f8a30", light: "#a6f5ae",
-      keys: { forward: ["KeyW"], back: ["KeyS"], left: ["KeyA"], right: ["KeyD"], fire: ["Space"] } },
+      keys: { up: ["KeyW"], down: ["KeyS"], left: ["KeyA"], right: ["KeyD"], fire: ["Space"] } },
     { defaultName: "Blue", color: "#3b8cff", dark: "#1b55b8", light: "#b4d4ff",
-      keys: { forward: ["ArrowUp"], back: ["ArrowDown"], left: ["ArrowLeft"], right: ["ArrowRight"], fire: ["Enter", "NumpadEnter"] } },
+      keys: { up: ["ArrowUp"], down: ["ArrowDown"], left: ["ArrowLeft"], right: ["ArrowRight"], fire: ["Enter", "NumpadEnter"] } },
   ],
 };
 
@@ -521,16 +518,23 @@ function update(dt) {
 
 function updateTank(t, dt) {
   const k = t.keys, T = CONFIG.tank;
-  const drive = (anyHeld(k.forward) ? 1 : 0) - (anyHeld(k.back) ? 1 : 0);
-  const turn = (anyHeld(k.right) ? 1 : 0) - (anyHeld(k.left) ? 1 : 0);
-  t.angle += turn * T.turnSpeed * dt;
+  // Direct 8-way movement: the keys say which way to go on screen (up, down, left, right or diagonals),
+  // the tank drives that way straight away and its body swings round to face the same way.
+  const dx = (anyHeld(k.right) ? 1 : 0) - (anyHeld(k.left) ? 1 : 0);
+  const dy = (anyHeld(k.down) ? 1 : 0) - (anyHeld(k.up) ? 1 : 0);
+  if (dx || dy) {
+    const target = Math.atan2(dy, dx);
+    // turn the short way round towards the target direction
+    let diff = Math.atan2(Math.sin(target - t.angle), Math.cos(target - t.angle));
+    const maxTurn = T.turnSpeed * dt;
+    t.angle += Math.abs(diff) <= maxTurn ? diff : Math.sign(diff) * maxTurn;
 
-  let speed = T.speed * (t.boost > 0 ? CONFIG.powerups.speedMultiplier : 1);
-  if (drive < 0) speed *= T.reverseFactor;
-  const dist = drive * speed * dt;
-  t.x += Math.cos(t.angle) * dist;
-  t.y += Math.sin(t.angle) * dist;
-  t.tread += Math.abs(dist) + Math.abs(turn) * dt * 30;
+    const speed = T.speed * (t.boost > 0 ? CONFIG.powerups.speedMultiplier : 1);
+    const dist = speed * dt;
+    t.x += Math.cos(target) * dist;
+    t.y += Math.sin(target) * dist;
+    t.tread += dist;
+  }
   pushOutOfWalls(t, t.r);
 
   // timers
@@ -1052,7 +1056,7 @@ if (isMobile()) {
     const pad = i => {
       const k = CONFIG.players[i].keys;
       return { name: i === 0 ? "GREEN" : "BLUE", color: CONFIG.players[i].color,
-        stick: { up: k.forward[0], down: k.back[0], left: k.left[0], right: k.right[0] },
+        stick: { up: k.up[0], down: k.down[0], left: k.left[0], right: k.right[0] },
         buttons: [{ label: "FIRE", code: k.fire[0], big: true }] };
     };
     CousinMode.multiPad({
