@@ -368,6 +368,7 @@ select{font-family:var(--body);font-size:16px;padding:3px 6px;border:2px solid v
 </div>
 <div class="toast" id="toast" hidden></div>
 
+<script src="../../mobile-mode.js"></script>
 <script>
 (()=>{
 const $=id=>document.getElementById(id);
@@ -1769,6 +1770,16 @@ $('helpToggle').onclick=()=>{setHelp($('help').hidden);if(!$('help').hidden)$('h
 let helpOpen=true;try{helpOpen=localStorage.getItem('nb_help')!=='0';}catch(e){}setHelp(helpOpen);
 syncOpts();setScreen('menu');
 if(document.fonts&&document.fonts.load)document.fonts.load(`40px ${FONT}`).then(()=>{if(screen==='menu')buildMapList();},()=>{});
+/* ================= mobile mode: on-screen controls for Red ================= */
+if(window.CousinMode&&CousinMode.isMobile()){
+  CousinMode.touchPad({
+    stick:{left:'KeyA',right:'KeyD',down:'KeyS'},
+    buttons:[{label:'JUMP',code:'KeyW',big:true},{label:'HIT',code:'KeyE',big:true},{label:'KICK',code:'ShiftLeft'},{label:'★',code:'KeyQ'}],
+    visible:()=>screen==='game'&&!paused&&game&&game.phase!=='over'});
+  // keyboard help is not useful on a phone: fold it away (without changing the saved PC setting)
+  $('help').hidden=true;document.querySelector('.app').classList.add('compact');
+  $('helpToggle').setAttribute('aria-expanded','false');$('helpToggle').querySelector('span').textContent='Show controls';
+}
 requestAnimationFrame(frame);
 })();
 </script>

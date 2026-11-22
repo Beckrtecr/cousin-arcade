@@ -153,6 +153,7 @@
   </div>
 </div>
 
+<script src="../../mobile-mode.js"></script>
 <script>
 (() => {
 'use strict';
@@ -793,7 +794,7 @@ function dirKey(k) {
   }
   return null;
 }
-const isTouch = matchMedia('(pointer: coarse)').matches;
+const isTouch = window.CousinMode ? CousinMode.isMobile() : matchMedia('(pointer: coarse)').matches;
 if (isTouch) document.body.classList.add('touch');
 
 /* ───────────── rendering ───────────── */

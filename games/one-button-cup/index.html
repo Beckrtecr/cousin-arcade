@@ -65,6 +65,15 @@
   .place.p0 { border-color:var(--pc); padding:20px; }
   .place.p0 b { font-size:36px; }
   .place.p0 span { color:var(--hot); }
+  #tapPad { position:fixed; inset:0; pointer-events:none; z-index:5; -webkit-user-select:none; user-select:none; }
+  #tapPad[hidden], #tapPad .tap[hidden] { display:none; }
+  #tapPad .tap { position:absolute; pointer-events:auto; touch-action:none; width:92px; height:92px; border-radius:50%;
+    display:grid; place-items:center; font-weight:900; font-size:15px; color:#0b1026; background:var(--pc); opacity:.55;
+    border:3px solid rgba(255,255,255,.7); box-shadow:0 5px 0 rgba(0,0,0,.45); }
+  #tapPad .tap.on { opacity:.9; transform:translateY(3px); box-shadow:0 2px 0 rgba(0,0,0,.45); }
+  #tapPad .quit { left:50%; top:8px; transform:translateX(-50%); width:auto; height:auto; padding:6px 12px; border-radius:10px;
+    font-size:13px; background:rgba(15,23,54,.85); color:var(--ink); opacity:.8; border-width:1px; box-shadow:none; }
+  html.mobile-mode, html.mobile-mode body { touch-action:manipulation; }
   @media (prefers-reduced-motion: reduce) { .card { transition:none; } }
 </style>
 </head>
@@ -108,6 +117,7 @@
   </div>
 </div>
 
+<script src="../../mobile-mode.js"></script>
 <script>
 'use strict';
 /* ONE BUTTON CUP — four players, one key each, two matches at once. */
@@ -2563,7 +2573,7 @@ function boot() {
   addBtn('mixBtns', 'mix', 'Mix tournament');
   const mixHow = () => count === 2 ? 'A best-of-five series across random games from the whole list. First to win 3 takes it.'
     : 'Three rounds with everyone in the same game, scoring 3, 2, 1, 0 points by finishing place. Then the top two meet in a head-to-head final' + (count === 4 ? ' while the other two play for 3rd.' : '.');
-  const refresh = () => {
+  let refresh = () => {
     if (!allowed(sport)) sport = 'mix';
     const on = seats();
     cards.className = 'n' + count;
@@ -2737,6 +2747,33 @@ function boot() {
     });
     requestAnimationFrame(frame);
   }
+  // mobile mode: a big tap button in a corner for each human player, plus a quit button
+  if (window.CousinMode && CousinMode.isMobile()) {
+    const pad = document.createElement('div'); pad.id = 'tapPad'; pad.hidden = true;
+    const spots = ['left:12px;top:12px', 'right:12px;top:12px', 'left:12px;bottom:12px', 'right:12px;bottom:12px'];
+    const tb = PLAYERS.map((P, i) => {
+      const b = document.createElement('div'); b.className = 'tap'; b.style.cssText = spots[i] + ';--pc:' + P.color;
+      b.textContent = P.name;
+      b.addEventListener('pointerdown', (e) => { e.preventDefault(); b.classList.add('on'); press(i); });
+      const up = () => b.classList.remove('on');
+      b.addEventListener('pointerup', up); b.addEventListener('pointercancel', up); b.addEventListener('pointerleave', up);
+      pad.appendChild(b); return b;
+    });
+    const quit = document.createElement('div'); quit.className = 'tap quit'; quit.textContent = '✕ Quit';
+    quit.addEventListener('pointerdown', (e) => { e.preventDefault(); toLobby(); });
+    pad.appendChild(quit);
+    document.body.appendChild(pad);
+    document.querySelector('.tip').textContent = 'Tap a player to join. Empty seats are played by the computer. In a game, tap your colour\'s button in the corner.';
+    const origRefresh = refresh;
+    refresh = () => { origRefresh(); [...cards.children].forEach((el, i) => { if (!joined[i]) el.querySelector('.st').textContent = 'CPU — tap to join'; }); };
+    (function loop() {
+      const on = state === 'play';
+      pad.hidden = !on;
+      if (on) { const S = seats(); tb.forEach((b, i) => (b.hidden = !(joined[i] && S.includes(i)))); }
+      requestAnimationFrame(loop);
+    })();
+  }
+
   refresh(); show('lobby'); requestAnimationFrame(frame);
 }
 
