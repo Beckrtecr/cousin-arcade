@@ -107,6 +107,7 @@
     <button class="go" id="again">REMATCH</button><button class="go alt" id="toMenu">MENU</button></div>
 </div>
 
+<script src="../../mobile-mode.js"></script>
 <script>
 "use strict";
 // ---------- setup ----------
@@ -254,7 +255,7 @@ document.querySelectorAll("#touch .tb").forEach(b => {
   b.addEventListener("pointerdown", on); b.addEventListener("pointerup", off);
   b.addEventListener("pointercancel", off); b.addEventListener("pointerleave", off);
 });
-const isTouch = matchMedia("(pointer: coarse)").matches;
+const isTouch = window.CousinMode ? CousinMode.isMobile() : matchMedia("(pointer: coarse)").matches;
 
 // ---------- menu ----------
 const opts = { mode:"cpu", diff:1, time:90, ball:"normal" };

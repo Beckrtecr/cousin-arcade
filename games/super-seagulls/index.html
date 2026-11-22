@@ -2,6 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
 <title>SUPER SEAGULLS</title>
 <style>
 body { margin:0; background:#87CEEB; overflow:hidden; font-family:Arial; }
@@ -23,6 +24,17 @@ canvas { display:block; }
 }
 #victory span { font-size:60px; display:block; margin-top:40px; color:#fff; text-shadow:0 0 20px #000; }
 #instructions { position:absolute; bottom:10px; left:10px; color:#fff; font:18px Arial; text-shadow:2px 4px #000; }
+/* Mobile mode */
+html.mobile-mode, html.mobile-mode body { touch-action:none; -webkit-user-select:none; user-select:none; }
+html.mobile-mode #instructions { left:50%; transform:translateX(-50%); bottom:auto; top:12px; font-size:14px; text-align:center; white-space:nowrap; }
+html.mobile-mode #ui, html.mobile-mode #gunui { font-size:20px; }
+html.mobile-mode #gunui { top:38px; }
+@media (max-width: 820px), (max-height: 500px) {
+  #start { font-size:40px; } #start span { font-size:26px !important; }
+  #gameover { font-size:40px; } #gameover span { font-size:22px !important; }
+  #victory { font-size:32px; } #victory span { font-size:24px; margin-top:16px; }
+  #instructions { font-size:13px; }
+}
 </style>
 </head>
 <body>
@@ -47,6 +59,7 @@ canvas { display:block; }
 <div id="instructions">WASD/Arrows = Fly    Mouse = Aim & Shoot    4 Guns = GOD MODE</div>
 <canvas id="c"></canvas>
 
+<script src="../../mobile-mode.js"></script>
 <script>
 const canvas = document.getElementById('c');
 const ctx = canvas.getContext('2d');
@@ -181,7 +194,7 @@ function startGame() {
 canvas.addEventListener('click', (e) => {
     if (!started) startGame();
     else if (gameOver || victory) startGame();
-    else shoot();
+    else if (!touchAiming) shoot();
 });
 gameOverScreen.onclick = victoryScreen.onclick = startGame;
 
@@ -325,6 +338,38 @@ function loop() {
     }
 
     requestAnimationFrame(loop);
+}
+
+/* ────────────────────── MOBILE MODE ────────────────────── */
+// Left thumb: joystick to fly. Right thumb: touch anywhere to aim there and keep firing.
+let touchAiming = false;
+if (window.CousinMode && CousinMode.isMobile()) {
+    touchAiming = true;
+    document.getElementById('instructions').textContent = 'Stick = Fly    Touch the sky = Aim & Shoot';
+    startScreen.querySelector('span').textContent = 'Tap to play';
+    gameOverScreen.lastElementChild.textContent = 'Tap to try again';
+    victoryScreen.querySelector('span').textContent = 'tap to play again';
+    const playing = () => started && !gameOver && !victory;
+    CousinMode.touchPad({
+        stick: { left: 'ArrowLeft', right: 'ArrowRight', up: 'ArrowUp', down: 'ArrowDown' },
+        visible: playing,
+    });
+    const aims = new Map();
+    let fireTimer = 0;
+    const aimAt = e => { mouse.x = e.clientX; mouse.y = e.clientY; };
+    canvas.addEventListener('pointerdown', e => {
+        if (!playing()) return;
+        e.preventDefault();
+        aims.set(e.pointerId, true); aimAt(e); shoot();
+        if (!fireTimer) fireTimer = setInterval(() => { if (aims.size && playing()) shoot(); }, 170);
+    });
+    canvas.addEventListener('pointermove', e => { if (aims.has(e.pointerId)) aimAt(e); });
+    const stopAim = e => {
+        aims.delete(e.pointerId);
+        if (!aims.size && fireTimer) { clearInterval(fireTimer); fireTimer = 0; }
+    };
+    addEventListener('pointerup', stopAim);
+    addEventListener('pointercancel', stopAim);
 }
 
 addEventListener('resize', () => {
