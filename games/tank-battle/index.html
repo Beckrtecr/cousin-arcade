@@ -1,0 +1,1088 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>Tank Battle — Cousin Arcade</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body {
+    width: 100%; height: 100%; overflow: hidden;
+    background: #2a2550;
+    font-family: "Arial Rounded MT Bold", "Trebuchet MS", "Segoe UI", system-ui, sans-serif;
+    color: #2a2550;
+    -webkit-tap-highlight-color: transparent;
+  }
+  body { background: radial-gradient(circle at 50% 30%, #3d3478, #1e1a3d); }
+  html.mobile-mode, html.mobile-mode body { touch-action: none; -webkit-user-select: none; user-select: none; }
+
+  /* The game area: sized by JavaScript so it always keeps the same proportions */
+  #wrap { position: absolute; border-radius: 14px; overflow: hidden; box-shadow: 0 10px 40px rgba(0,0,0,.45); }
+  #cv { display: block; width: 100%; height: 100%; }
+
+  #mute {
+    position: absolute; left: 50%; transform: translateX(-50%);
+    border: 3px solid #fff; border-radius: 50%; background: #ffcf3f; cursor: pointer;
+    display: grid; place-items: center; line-height: 1; box-shadow: 0 3px 0 rgba(0,0,0,.25);
+  }
+  #mute:active { transform: translateX(-50%) scale(.92); }
+
+  /* Start and winner screens */
+  .overlay {
+    position: fixed; inset: 0; z-index: 10; display: flex; align-items: center; justify-content: center;
+    background: rgba(30, 26, 61, .55); padding: 16px; overflow: auto;
+  }
+  .overlay[hidden] { display: none; }
+  .card {
+    background: #fffaf0; border: 5px solid #2a2550; border-radius: 26px; padding: 22px 26px;
+    width: min(620px, 100%); max-height: 100%; overflow: auto; text-align: center;
+    box-shadow: 0 10px 0 rgba(0,0,0,.25);
+  }
+  h1 { font-size: clamp(26px, 6vw, 42px); line-height: 1.05; color: #2a2550; }
+  h1 small { display: block; font-size: .5em; color: #8b5cf6; margin-top: 4px; letter-spacing: .04em; }
+  .names { display: flex; gap: 14px; margin: 18px 0 12px; flex-wrap: wrap; }
+  .names label { flex: 1 1 200px; text-align: left; font-weight: bold; font-size: 15px; }
+  .names input {
+    display: block; width: 100%; margin-top: 4px; font: inherit; font-size: 18px; padding: 8px 12px;
+    border: 3px solid currentColor; border-radius: 14px; background: #fff; color: #2a2550; outline: none;
+  }
+  .names .p1 { color: #1f9a35; } .names .p2 { color: #1f6fe0; }
+  .guide { display: flex; gap: 14px; flex-wrap: wrap; text-align: left; font-size: 14px; }
+  .guide > div { flex: 1 1 220px; background: #f1ecff; border-radius: 16px; padding: 10px 12px; line-height: 1.7; }
+  .guide b { display: block; font-size: 15px; }
+  kbd {
+    display: inline-block; min-width: 24px; padding: 0 6px; border: 2px solid #2a2550; border-bottom-width: 4px;
+    border-radius: 7px; background: #fff; font: bold 12px/18px system-ui, sans-serif; text-align: center;
+  }
+  .rules { font-size: 13.5px; margin: 12px 0 0; line-height: 1.5; color: #4a4570; }
+  .btn {
+    margin-top: 16px; font: inherit; font-size: 22px; font-weight: bold; color: #fff; cursor: pointer;
+    background: #ff6b3d; border: 4px solid #2a2550; border-radius: 18px; padding: 10px 30px;
+    box-shadow: 0 5px 0 #2a2550; transition: transform .05s;
+  }
+  .btn:active { transform: translateY(4px); box-shadow: 0 1px 0 #2a2550; }
+  .btn.small { font-size: 15px; padding: 6px 16px; background: #8b5cf6; margin-left: 8px; }
+  .touch-only { display: none; }
+  html.mobile-mode .touch-only { display: block; }
+  html.mobile-mode .pc-only { display: none; }
+  #winTitle { font-size: clamp(28px, 7vw, 46px); font-weight: bold; }
+  #winScore { font-size: 22px; margin-top: 6px; color: #4a4570; }
+  .trophy { font-size: 60px; line-height: 1; }
+
+  /* Touch pads from the shared mobile helper: one roomy FIRE button per player */
+  html.mobile-mode .cm-cluster .cm-grid { grid-template-columns: 64px; }
+  html.mobile-mode .cm-cluster .cm-btn { width: 64px; height: 64px; font-size: 13px; }
+</style>
+</head>
+<body>
+
+<div id="wrap">
+  <canvas id="cv"></canvas>
+  <button id="mute" title="Sound on/off" aria-label="Sound on/off">🔊</button>
+</div>
+
+<!-- START SCREEN -->
+<div class="overlay" id="menu">
+  <form class="card" id="menuForm" autocomplete="off">
+    <h1>Tank Battle <small>— Cousin Arcade —</small></h1>
+    <div class="names">
+      <label class="p1">Player 1 (green)<input id="name1" maxlength="12" placeholder="Green"></label>
+      <label class="p2">Player 2 (blue)<input id="name2" maxlength="12" placeholder="Blue"></label>
+    </div>
+    <div class="guide pc-only">
+      <div><b style="color:#1f9a35">Green tank</b>
+        <kbd>W</kbd> <kbd>S</kbd> drive forward / back<br>
+        <kbd>A</kbd> <kbd>D</kbd> turn<br>
+        <kbd>Space</kbd> fire</div>
+      <div><b style="color:#1f6fe0">Blue tank</b>
+        <kbd>↑</kbd> <kbd>↓</kbd> drive forward / back<br>
+        <kbd>←</kbd> <kbd>→</kbd> turn<br>
+        <kbd>Enter</kbd> fire</div>
+    </div>
+    <div class="guide touch-only">
+      <div><b>Touch controls</b>
+        Green uses the joystick on the left, Blue uses the one on the right.
+        Push up to drive, down to back up, sideways to turn. Tap <b style="display:inline">FIRE</b> to shoot.
+        Turn your phone sideways for a bigger arena.</div>
+    </div>
+    <p class="rules">Shells bounce off walls 3 times. Careful: after one bounce your own shells can hit you!
+      Max 3 shells each. Grab power-ups: ⚡ Rapid Fire, 🛡️ Shield, 💣 Big Shell, 👟 Speed Boost.
+      First to <span id="winsNeeded">5</span> wins!</p>
+    <button class="btn" type="submit">Start Battle!</button>
+  </form>
+</div>
+
+<!-- WINNER SCREEN -->
+<div class="overlay" id="win" hidden>
+  <div class="card">
+    <div class="trophy">🏆</div>
+    <div id="winTitle">Green wins!</div>
+    <div id="winScore">5 – 3</div>
+    <button class="btn" id="againBtn">Play Again</button>
+    <button class="btn small" id="namesBtn">Change names</button>
+  </div>
+</div>
+
+<script>document.write('<script src="../../mobile-mode.js?v=' + Date.now() + '"><\/script>');</script>
+<script>
+(() => {
+"use strict";
+
+/* =====================================================================
+   CONFIG: every number you might want to tweak lives here.
+   Speeds are in pixels per second, times are in seconds.
+   ===================================================================== */
+const CONFIG = {
+  maze: {
+    cols: 11,               // cells across
+    rows: 7,                // cells down
+    cell: 80,               // size of one cell in pixels
+    wall: 10,               // wall thickness
+    openness: 0.32,         // 0 = classic twisty maze, 1 = almost no inner walls
+  },
+  tank: {
+    radius: 15,             // collision size (tanks are round-ish)
+    speed: 125,             // forward speed
+    reverseFactor: 0.65,    // backing up is a bit slower
+    turnSpeed: 3.3,         // radians per second
+  },
+  shell: {
+    speed: 270,
+    radius: 4.5,
+    maxBounces: 3,          // disappears on the next wall after this many bounces
+    maxPerTank: 3,          // shells on screen at once per tank
+    cooldown: 0.22,         // minimum time between shots
+    lifetime: 12,           // safety: shells vanish after this long no matter what
+  },
+  powerups: {
+    every: 10,              // a new power-up appears about this often
+    jitter: 2,              // ... give or take this many seconds
+    maxOnField: 3,
+    radius: 15,
+    lastsOnField: 20,       // uncollected power-ups vanish after this long
+    rapidTime: 5,           // Rapid Fire: no shell limit for this long
+    rapidCooldown: 0.09,    //   ... and you can hold fire to spray
+    speedTime: 5,           // Speed Boost duration
+    speedMultiplier: 1.5,   //   ... 50% faster
+    bigShots: 1,            // Big Shell: how many big shells you get
+    bigSpeed: 170,          //   big shells are slower
+    bigRadius: 10,          //   ... and bigger
+    bigBounces: 5,          //   ... and bounce more
+  },
+  match: {
+    winsNeeded: 5,
+    roundPause: 2.4,        // pause after a tank blows up
+  },
+  effects: {
+    shake: 16,              // screen shake strength on a hit
+    shakeFade: 5,           // how quickly the shake calms down
+  },
+  hud: { height: 64 },      // scoreboard height
+  colors: {
+    floor: "#fbefd2", floorAlt: "#f5e4bd",
+    wall: "#8b5cf6", wallTop: "#a98bff", wallShadow: "rgba(60, 30, 120, .28)",
+    hud: "#2a2550", hudText: "#ffffff", shell: "#2a2550",
+  },
+  players: [
+    { defaultName: "Green", color: "#3fcf4f", dark: "#1f8a30", light: "#a6f5ae",
+      keys: { forward: ["KeyW"], back: ["KeyS"], left: ["KeyA"], right: ["KeyD"], fire: ["Space"] } },
+    { defaultName: "Blue", color: "#3b8cff", dark: "#1b55b8", light: "#b4d4ff",
+      keys: { forward: ["ArrowUp"], back: ["ArrowDown"], left: ["ArrowLeft"], right: ["ArrowRight"], fire: ["Enter", "NumpadEnter"] } },
+  ],
+};
+
+/* Power-up types: label, colour and what they do when picked up */
+const POWERUPS = {
+  rapid:  { name: "RAPID FIRE!", color: "#ffb31a", apply: t => { t.rapid = CONFIG.powerups.rapidTime; } },
+  shield: { name: "SHIELD!",     color: "#33d6e8", apply: t => { t.shield = true; } },
+  big:    { name: "BIG SHELL!",  color: "#ff5a5a", apply: t => { t.bigShots = CONFIG.powerups.bigShots; } },
+  speed:  { name: "SPEED BOOST!", color: "#4ee06a", apply: t => { t.boost = CONFIG.powerups.speedTime; } },
+};
+const POWERUP_KINDS = Object.keys(POWERUPS);
+
+/* ---------- derived sizes ---------- */
+const M = CONFIG.maze;
+const WORLD_W = M.cols * M.cell + M.wall;           // playfield size (walls sit on cell edges)
+const WORLD_H = M.rows * M.cell + M.wall;
+const W = WORLD_W, H = WORLD_H + CONFIG.hud.height; // whole canvas in game pixels
+
+const $ = id => document.getElementById(id);
+const cv = $("cv"), ctx = cv.getContext("2d");
+const rand = (a, b) => a + Math.random() * (b - a);
+const randInt = n => Math.floor(Math.random() * n);
+const clamp = (v, a, b) => v < a ? a : v > b ? b : v;
+const isMobile = () => !!(window.CousinMode && CousinMode.isMobile());
+
+/* =====================================================================
+   SOUND: tiny synth effects with the Web Audio API
+   ===================================================================== */
+const Sound = {
+  ac: null, master: null, noiseBuf: null, lastBounce: 0,
+  muted: (() => { try { return localStorage.getItem("tankBattleMuted") === "1"; } catch (e) { return false; } })(),
+  init() {
+    if (this.ac) { if (this.ac.state === "suspended") this.ac.resume(); return; }
+    const AC = window.AudioContext || window.webkitAudioContext;
+    if (!AC) return;
+    this.ac = new AC();
+    this.master = this.ac.createGain();
+    this.master.gain.value = this.muted ? 0 : 0.55;
+    this.master.connect(this.ac.destination);
+    const len = this.ac.sampleRate;           // one second of white noise, reused for every bang
+    this.noiseBuf = this.ac.createBuffer(1, len, this.ac.sampleRate);
+    const d = this.noiseBuf.getChannelData(0);
+    for (let i = 0; i < len; i++) d[i] = Math.random() * 2 - 1;
+  },
+  setMuted(m) {
+    this.muted = m;
+    try { localStorage.setItem("tankBattleMuted", m ? "1" : "0"); } catch (e) {}
+    if (this.master) this.master.gain.value = m ? 0 : 0.55;
+  },
+  tone(freq, dur, type = "sine", vol = 0.2, endFreq = freq, delay = 0) {
+    if (!this.ac || this.muted) return;
+    const t = this.ac.currentTime + delay;
+    const o = this.ac.createOscillator(), g = this.ac.createGain();
+    o.type = type;
+    o.frequency.setValueAtTime(freq, t);
+    o.frequency.exponentialRampToValueAtTime(Math.max(20, endFreq), t + dur);
+    g.gain.setValueAtTime(vol, t);
+    g.gain.exponentialRampToValueAtTime(0.001, t + dur);
+    o.connect(g); g.connect(this.master);
+    o.start(t); o.stop(t + dur + 0.02);
+  },
+  noise(dur, vol = 0.3, freq = 1000, endFreq = freq) {
+    if (!this.ac || this.muted) return;
+    const t = this.ac.currentTime;
+    const s = this.ac.createBufferSource(), f = this.ac.createBiquadFilter(), g = this.ac.createGain();
+    s.buffer = this.noiseBuf;
+    f.type = "lowpass";
+    f.frequency.setValueAtTime(freq, t);
+    f.frequency.exponentialRampToValueAtTime(Math.max(40, endFreq), t + dur);
+    g.gain.setValueAtTime(vol, t);
+    g.gain.exponentialRampToValueAtTime(0.001, t + dur);
+    s.connect(f); f.connect(g); g.connect(this.master);
+    s.start(t); s.stop(t + dur + 0.02);
+  },
+  fire(big) {
+    this.noise(big ? 0.25 : 0.12, big ? 0.4 : 0.28, big ? 900 : 2200, 300);
+    this.tone(big ? 160 : 260, big ? 0.22 : 0.1, "square", 0.12, big ? 50 : 90);
+  },
+  bounce() {
+    if (!this.ac) return;
+    const now = this.ac.currentTime;
+    if (now - this.lastBounce < 0.03) return;   // don't spam when lots of shells bounce at once
+    this.lastBounce = now;
+    this.tone(rand(820, 980), 0.06, "sine", 0.12, 560);
+  },
+  boom() {
+    this.noise(0.8, 0.6, 1400, 60);
+    this.tone(140, 0.6, "sine", 0.4, 35);
+  },
+  shieldHit() { this.tone(1300, 0.25, "triangle", 0.2, 380); },
+  powerup() { [523, 659, 784, 1047].forEach((f, i) => this.tone(f, 0.12, "square", 0.08, f, i * 0.06)); },
+  roundStart() { this.tone(660, 0.12, "square", 0.08); this.tone(990, 0.2, "square", 0.08, 990, 0.14); },
+  fanfare() { [523, 659, 784, 659, 784, 1047].forEach((f, i) => this.tone(f, 0.18, "square", 0.09, f, i * 0.13)); },
+};
+
+/* =====================================================================
+   MAZE: random maze with guaranteed paths
+   ===================================================================== */
+// hWalls[r][c]: wall on the TOP edge of cell (r, c)   (r goes 0..rows, row "rows" is the bottom border)
+// vWalls[r][c]: wall on the LEFT edge of cell (r, c)  (c goes 0..cols, column "cols" is the right border)
+let maze = null;     // { hWalls, vWalls, rects }
+
+function generateMaze() {
+  const { cols, rows } = M;
+  const hWalls = [], vWalls = [];
+  for (let r = 0; r <= rows; r++) hWalls.push(new Array(cols).fill(true));
+  for (let r = 0; r < rows; r++) vWalls.push(new Array(cols + 1).fill(true));
+
+  // 1) "Recursive backtracker": carves a perfect maze, so EVERY cell is reachable from every other.
+  const seen = [];
+  for (let r = 0; r < rows; r++) seen.push(new Array(cols).fill(false));
+  const stack = [[randInt(rows), randInt(cols)]];
+  seen[stack[0][0]][stack[0][1]] = true;
+  while (stack.length) {
+    const [r, c] = stack[stack.length - 1];
+    const options = [];
+    if (r > 0 && !seen[r - 1][c]) options.push([r - 1, c]);
+    if (r < rows - 1 && !seen[r + 1][c]) options.push([r + 1, c]);
+    if (c > 0 && !seen[r][c - 1]) options.push([r, c - 1]);
+    if (c < cols - 1 && !seen[r][c + 1]) options.push([r, c + 1]);
+    if (!options.length) { stack.pop(); continue; }
+    const [nr, nc] = options[randInt(options.length)];
+    if (nr !== r) hWalls[Math.max(r, nr)][c] = false;   // knock down the wall between them
+    else vWalls[r][Math.max(c, nc)] = false;
+    seen[nr][nc] = true;
+    stack.push([nr, nc]);
+  }
+
+  // 2) Knock out some extra inner walls so there are loops and open spaces (more fun for bouncing).
+  //    Removing walls can only ADD paths, so everything stays connected.
+  for (let r = 1; r < rows; r++) for (let c = 0; c < cols; c++) if (Math.random() < M.openness) hWalls[r][c] = false;
+  for (let r = 0; r < rows; r++) for (let c = 1; c < cols; c++) if (Math.random() < M.openness) vWalls[r][c] = false;
+
+  maze = { hWalls, vWalls, rects: buildWallRects(hWalls, vWalls) };
+}
+
+// Is there an open edge between cell (r,c) and its neighbour in direction (dr,dc)?
+function canStep(r, c, dr, dc) {
+  if (dr === -1) return !maze.hWalls[r][c];
+  if (dr === 1) return !maze.hWalls[r + 1][c];
+  if (dc === -1) return !maze.vWalls[r][c];
+  return !maze.vWalls[r][c + 1];
+}
+
+// Breadth-first search: can you drive from cell a to cell b?
+function connected(a, b) {
+  const seen = new Set([a.r * 100 + a.c]);
+  const q = [a];
+  while (q.length) {
+    const { r, c } = q.shift();
+    if (r === b.r && c === b.c) return true;
+    for (const [dr, dc] of [[-1, 0], [1, 0], [0, -1], [0, 1]]) {
+      const nr = r + dr, nc = c + dc;
+      if (nr < 0 || nc < 0 || nr >= M.rows || nc >= M.cols || seen.has(nr * 100 + nc)) continue;
+      if (!canStep(r, c, dr, dc)) continue;
+      seen.add(nr * 100 + nc);
+      q.push({ r: nr, c: nc });
+    }
+  }
+  return false;
+}
+
+// Turn wall flags into rectangles. Walls in a straight line are merged into one long rectangle,
+// so shells never catch on a "seam" between two pieces and bounce at a weird angle.
+function buildWallRects(hWalls, vWalls) {
+  const rects = [], T = M.wall, S = M.cell;
+  for (let r = 0; r <= M.rows; r++) {
+    for (let c = 0; c < M.cols;) {
+      if (!hWalls[r][c]) { c++; continue; }
+      const start = c;
+      while (c < M.cols && hWalls[r][c]) c++;
+      rects.push({ x: start * S, y: r * S, w: (c - start) * S + T, h: T });
+    }
+  }
+  for (let c = 0; c <= M.cols; c++) {
+    for (let r = 0; r < M.rows;) {
+      if (!vWalls[r][c]) { r++; continue; }
+      const start = r;
+      while (r < M.rows && vWalls[r][c]) r++;
+      rects.push({ x: c * S, y: start * S, w: T, h: (r - start) * S + T });
+    }
+  }
+  return rects;
+}
+
+// Centre of a cell in playfield pixels (always open floor, never inside a wall)
+const cellCenter = (r, c) => ({ x: M.wall / 2 + c * M.cell + M.cell / 2, y: M.wall / 2 + r * M.cell + M.cell / 2 });
+
+/* =====================================================================
+   COLLISION helpers (circles against axis-aligned wall rectangles)
+   ===================================================================== */
+// Returns null if the circle doesn't touch the rect, otherwise the push-out normal and depth.
+function circleRect(x, y, rad, w) {
+  const cx = clamp(x, w.x, w.x + w.w), cy = clamp(y, w.y, w.y + w.h);
+  const dx = x - cx, dy = y - cy, d2 = dx * dx + dy * dy;
+  if (d2 >= rad * rad) return null;
+  if (d2 > 1e-9) {
+    const d = Math.sqrt(d2);
+    return { nx: dx / d, ny: dy / d, depth: rad - d };   // touching a face or a corner
+  }
+  // centre is inside the rectangle (only if something moved very fast): push out the shortest way
+  const l = x - w.x, r = w.x + w.w - x, t = y - w.y, b = w.y + w.h - y, m = Math.min(l, r, t, b);
+  if (m === l) return { nx: -1, ny: 0, depth: l + rad };
+  if (m === r) return { nx: 1, ny: 0, depth: r + rad };
+  if (m === t) return { nx: 0, ny: -1, depth: t + rad };
+  return { nx: 0, ny: 1, depth: b + rad };
+}
+
+function pushOutOfWalls(o, rad) {
+  for (let pass = 0; pass < 3; pass++) {
+    let moved = false;
+    for (const w of maze.rects) {
+      const hit = circleRect(o.x, o.y, rad, w);
+      if (hit) { o.x += hit.nx * hit.depth; o.y += hit.ny * hit.depth; moved = true; }
+    }
+    if (!moved) break;
+  }
+}
+
+/* =====================================================================
+   GAME STATE
+   ===================================================================== */
+let state = "menu";            // "menu" | "playing" | "roundover" | "matchover"
+let tanks = [], shells = [], particles = [], popups = [], powerups = [];
+let names = CONFIG.players.map(p => p.defaultName);
+let scores = [0, 0];
+let round = 0, roundTimer = 0, powerTimer = 0;
+let shake = 0, banner = null, time = 0;
+
+function makeTank(i, spot) {
+  const p = CONFIG.players[i];
+  return {
+    id: i, x: spot.x, y: spot.y, angle: i === 0 ? 0 : Math.PI, r: CONFIG.tank.radius,
+    color: p.color, dark: p.dark, light: p.light, keys: p.keys,
+    alive: true, cooldown: 0, rapid: 0, boost: 0, shield: false, bigShots: 0,
+    tread: 0, flash: 0,
+  };
+}
+
+function newRound() {
+  round++;
+  // Pick start cells on opposite sides, make a maze, and double check there is a path between them.
+  let a, b, tries = 0;
+  do {
+    generateMaze();
+    a = { r: randInt(M.rows), c: randInt(3) };
+    b = { r: randInt(M.rows), c: M.cols - 1 - randInt(3) };
+  } while (!connected(a, b) && ++tries < 50);
+  tanks = [makeTank(0, cellCenter(a.r, a.c)), makeTank(1, cellCenter(b.r, b.c))];
+  shells = []; powerups = []; popups = []; particles = [];
+  powerTimer = CONFIG.powerups.every + rand(-CONFIG.powerups.jitter, CONFIG.powerups.jitter);
+  banner = { text: "Round " + round, sub: "GO!", t: 1.4 };
+  state = "playing";
+  Sound.roundStart();
+}
+
+function startMatch() {
+  scores = [0, 0]; round = 0;
+  $("menu").hidden = true; $("win").hidden = true;
+  if (document.activeElement) document.activeElement.blur();  // so Space / Enter don't press a button
+  Sound.init();
+  newRound();
+}
+
+/* =====================================================================
+   INPUT
+   ===================================================================== */
+const keys = {};       // which keys are held right now
+const pressed = {};    // keys pressed since the last frame
+const GAME_KEYS = new Set(CONFIG.players.flatMap(p => Object.values(p.keys).flat()));
+
+addEventListener("keydown", e => {
+  if (e.target && e.target.tagName === "INPUT") return;          // typing a name
+  if (GAME_KEYS.has(e.code) && state !== "menu" && state !== "matchover") e.preventDefault();
+  if (!keys[e.code] && !e.repeat) pressed[e.code] = true;
+  keys[e.code] = true;
+  if (e.code === "KeyM" && state !== "menu") toggleMute();
+});
+addEventListener("keyup", e => { keys[e.code] = false; });
+addEventListener("blur", () => { for (const k in keys) keys[k] = false; });
+const anyHeld = list => list.some(k => keys[k]);
+const anyPressed = list => list.some(k => pressed[k]);
+
+/* =====================================================================
+   UPDATE
+   ===================================================================== */
+function update(dt) {
+  time += dt;
+  const deadBefore = tanks.filter(t => !t.alive).length;   // (a point-blank shot can blow up a tank while it fires)
+  for (const t of tanks) if (t.alive) updateTank(t, dt);
+
+  // tanks bump into each other
+  const [A, B] = tanks;
+  if (A.alive && B.alive) {
+    const dx = B.x - A.x, dy = B.y - A.y, d = Math.hypot(dx, dy), min = A.r + B.r;
+    if (d < min && d > 0.001) {
+      const push = (min - d) / 2, nx = dx / d, ny = dy / d;
+      A.x -= nx * push; A.y -= ny * push; B.x += nx * push; B.y += ny * push;
+      pushOutOfWalls(A, A.r); pushOutOfWalls(B, B.r);
+    }
+  }
+
+  for (const s of shells) updateShell(s, dt);
+  shells = shells.filter(s => !s.dead);
+
+  updatePowerups(dt);
+  updateEffects(dt);
+
+  // did someone get blown up this frame?
+  if (state === "playing" && tanks.filter(t => !t.alive).length > deadBefore) {
+    const alive = tanks.filter(t => t.alive);
+    if (alive.length === 1) {
+      scores[alive[0].id]++;
+      banner = { text: names[alive[0].id] + " scores!", color: alive[0].color, t: CONFIG.match.roundPause };
+    } else {
+      banner = { text: "Double KO!", sub: "Nobody scores", t: CONFIG.match.roundPause };
+    }
+    state = "roundover";
+    roundTimer = CONFIG.match.roundPause;
+  }
+
+  if (state === "roundover") {
+    roundTimer -= dt;
+    if (roundTimer <= 0) {
+      const winner = scores.findIndex(s => s >= CONFIG.match.winsNeeded);
+      if (winner >= 0) showWinner(winner); else newRound();
+    }
+  }
+  for (const k in pressed) delete pressed[k];
+}
+
+function updateTank(t, dt) {
+  const k = t.keys, T = CONFIG.tank;
+  const drive = (anyHeld(k.forward) ? 1 : 0) - (anyHeld(k.back) ? 1 : 0);
+  const turn = (anyHeld(k.right) ? 1 : 0) - (anyHeld(k.left) ? 1 : 0);
+  t.angle += turn * T.turnSpeed * dt;
+
+  let speed = T.speed * (t.boost > 0 ? CONFIG.powerups.speedMultiplier : 1);
+  if (drive < 0) speed *= T.reverseFactor;
+  const dist = drive * speed * dt;
+  t.x += Math.cos(t.angle) * dist;
+  t.y += Math.sin(t.angle) * dist;
+  t.tread += Math.abs(dist) + Math.abs(turn) * dt * 30;
+  pushOutOfWalls(t, t.r);
+
+  // timers
+  t.cooldown -= dt;
+  if (t.rapid > 0) t.rapid -= dt;
+  if (t.boost > 0) t.boost -= dt;
+  if (t.flash > 0) t.flash -= dt;
+
+  // firing: tap to fire; while Rapid Fire is on you can also hold the button
+  const wantsFire = anyPressed(k.fire) || (t.rapid > 0 && anyHeld(k.fire));
+  if (wantsFire && t.cooldown <= 0 && state === "playing") fire(t);
+}
+
+function fire(t) {
+  const P = CONFIG.powerups, S = CONFIG.shell;
+  const mine = shells.filter(s => s.owner === t.id).length;
+  if (t.rapid <= 0 && mine >= S.maxPerTank) return;
+  const big = t.bigShots > 0;
+  if (big) t.bigShots--;
+  const speed = big ? P.bigSpeed : S.speed;
+  const s = {
+    owner: t.id, x: t.x, y: t.y, r: big ? P.bigRadius : S.radius, big,
+    vx: Math.cos(t.angle) * speed, vy: Math.sin(t.angle) * speed,
+    bounces: 0, maxBounces: big ? P.bigBounces : S.maxBounces, age: 0, dead: false,
+  };
+  shells.push(s);
+  // The shell starts at the tank's centre and travels out to the barrel tip, using normal wall physics.
+  // That way it can never start inside a wall: fire point-blank into a wall and it bounces right back at you!
+  moveShell(s, (t.r + 3) / speed);
+  t.cooldown = t.rapid > 0 ? P.rapidCooldown : S.cooldown;
+  t.flash = 0.08;
+  Sound.fire(big);
+  // muzzle puff
+  for (let i = 0; i < 5; i++) particles.push({
+    x: t.x + Math.cos(t.angle) * (t.r + 6), y: t.y + Math.sin(t.angle) * (t.r + 6),
+    vx: Math.cos(t.angle + rand(-.6, .6)) * rand(30, 90), vy: Math.sin(t.angle + rand(-.6, .6)) * rand(30, 90),
+    r: rand(3, 6), life: 0.3, max: 0.3, color: "rgba(255,255,255,.9)", grow: 14,
+  });
+}
+
+function updateShell(s, dt) {
+  s.age += dt;
+  if (s.age > CONFIG.shell.lifetime) { s.dead = true; return; }
+  moveShell(s, dt);
+}
+
+// Move a shell in tiny steps so it can't tunnel through a wall, bouncing off what it touches.
+function moveShell(s, dt) {
+  const speed = Math.hypot(s.vx, s.vy);
+  const steps = Math.max(1, Math.ceil(speed * dt / 2));
+  const h = dt / steps;
+  for (let i = 0; i < steps && !s.dead; i++) {
+    s.x += s.vx * h; s.y += s.vy * h;
+    let bounced = false;
+    for (const w of maze.rects) {
+      const hit = circleRect(s.x, s.y, s.r, w);
+      if (!hit) continue;
+      s.x += hit.nx * hit.depth; s.y += hit.ny * hit.depth;
+      // Reflect the velocity around the wall's normal: v' = v - 2(v·n)n.
+      // On a flat face the normal is straight out; on a corner it points from the corner to the shell.
+      const vn = s.vx * hit.nx + s.vy * hit.ny;
+      if (vn < 0) { s.vx -= 2 * vn * hit.nx; s.vy -= 2 * vn * hit.ny; bounced = true; }
+    }
+    if (bounced) {
+      s.bounces++;
+      if (s.bounces > s.maxBounces) { s.dead = true; puff(s.x, s.y, "#b9b3d6"); return; }
+      Sound.bounce();
+    }
+    checkShellHits(s);   // (your own shell is safe until it has bounced once)
+  }
+}
+
+function checkShellHits(s) {
+  for (const t of tanks) {
+    if (!t.alive || s.dead) continue;
+    if (t.id === s.owner && s.bounces === 0) continue;   // your own shell can't hit you before it bounces
+    if (state !== "playing") continue;                   // round is already decided
+    const d = Math.hypot(t.x - s.x, t.y - s.y);
+    if (d >= t.r + s.r) continue;
+    s.dead = true;
+    if (t.shield) {
+      t.shield = false;
+      Sound.shieldHit();
+      puff(s.x, s.y, "#33d6e8");
+      popups.push({ x: t.x, y: t.y - 26, text: "BLOCKED!", color: "#1aa9bb", t: 1 });
+      shake = Math.max(shake, CONFIG.effects.shake * 0.3);
+    } else {
+      destroyTank(t);
+    }
+  }
+}
+
+function destroyTank(t) {
+  t.alive = false;
+  shake = CONFIG.effects.shake;
+  Sound.boom();
+  // a cartoony explosion: a flash ring, fireballs, smoke and bits of tank
+  particles.push({ ring: true, x: t.x, y: t.y, r: 8, life: 0.45, max: 0.45, grow: 160, color: "#fff3b0" });
+  const fire = ["#fff3b0", "#ffd23f", "#ff9a2e", "#ff5a3d"];
+  for (let i = 0; i < 26; i++) {
+    const a = rand(0, Math.PI * 2), sp = rand(40, 220);
+    particles.push({ x: t.x, y: t.y, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp, r: rand(5, 12),
+      life: rand(.35, .8), max: .8, color: fire[randInt(fire.length)], grow: -6, drag: 3 });
+  }
+  for (let i = 0; i < 10; i++) {
+    const a = rand(0, Math.PI * 2), sp = rand(20, 70);
+    particles.push({ x: t.x, y: t.y, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp, r: rand(8, 14),
+      life: rand(.8, 1.4), max: 1.4, color: "rgba(90,85,110,.55)", grow: 18, drag: 1.5 });
+  }
+  for (let i = 0; i < 8; i++) {
+    const a = rand(0, Math.PI * 2), sp = rand(120, 260);
+    particles.push({ x: t.x, y: t.y, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp, r: rand(2.5, 4.5),
+      life: rand(.5, .9), max: .9, color: t.color, grow: 0, drag: 2.5, square: true, spin: rand(-10, 10), rot: 0 });
+  }
+}
+
+function puff(x, y, color) {
+  for (let i = 0; i < 7; i++) {
+    const a = rand(0, Math.PI * 2), sp = rand(20, 80);
+    particles.push({ x, y, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp, r: rand(2, 4), life: .35, max: .35, color, grow: 4 });
+  }
+}
+
+function updatePowerups(dt) {
+  const P = CONFIG.powerups;
+  if (state === "playing") {
+    powerTimer -= dt;
+    if (powerTimer <= 0) {
+      powerTimer = P.every + rand(-P.jitter, P.jitter);
+      if (powerups.length < P.maxOnField) spawnPowerup();
+    }
+  }
+  for (const p of powerups) {
+    p.age += dt;
+    for (const t of tanks) {
+      if (!t.alive || p.taken) continue;
+      if (Math.hypot(t.x - p.x, t.y - p.y) < t.r + P.radius) {
+        p.taken = true;
+        POWERUPS[p.kind].apply(t);
+        Sound.powerup();
+        popups.push({ x: p.x, y: p.y - 24, text: POWERUPS[p.kind].name, color: POWERUPS[p.kind].color, t: 1.2 });
+        puff(p.x, p.y, POWERUPS[p.kind].color);
+      }
+    }
+  }
+  powerups = powerups.filter(p => !p.taken && p.age < P.lastsOnField);
+}
+
+function spawnPowerup() {
+  // random cell that isn't right next to a tank or another power-up
+  for (let tries = 0; tries < 40; tries++) {
+    const spot = cellCenter(randInt(M.rows), randInt(M.cols));
+    const nearTank = tanks.some(t => Math.hypot(t.x - spot.x, t.y - spot.y) < M.cell * 1.2);
+    const nearPower = powerups.some(p => Math.hypot(p.x - spot.x, p.y - spot.y) < M.cell);
+    if (nearTank || nearPower) continue;
+    powerups.push({ ...spot, kind: POWERUP_KINDS[randInt(POWERUP_KINDS.length)], age: 0, taken: false });
+    return;
+  }
+}
+
+function updateEffects(dt) {
+  for (const p of particles) {
+    p.life -= dt;
+    if (p.drag) { p.vx *= Math.exp(-p.drag * dt); p.vy *= Math.exp(-p.drag * dt); }
+    if (p.vx !== undefined) { p.x += p.vx * dt; p.y += p.vy * dt; }
+    p.r = Math.max(0.5, p.r + (p.grow || 0) * dt);
+    if (p.spin) p.rot += p.spin * dt;
+  }
+  particles = particles.filter(p => p.life > 0);
+  for (const p of popups) { p.t -= dt; p.y -= 28 * dt; }
+  popups = popups.filter(p => p.t > 0);
+  shake *= Math.exp(-CONFIG.effects.shakeFade * dt);
+  if (shake < 0.3) shake = 0;
+  if (banner) { banner.t -= dt; if (banner.t <= 0) banner = null; }
+}
+
+/* =====================================================================
+   DRAWING
+   ===================================================================== */
+function rr(x, y, w, h, r) {            // rounded rectangle path
+  r = Math.min(r, w / 2, h / 2);
+  ctx.beginPath();
+  ctx.moveTo(x + r, y);
+  ctx.arcTo(x + w, y, x + w, y + h, r);
+  ctx.arcTo(x + w, y + h, x, y + h, r);
+  ctx.arcTo(x, y + h, x, y, r);
+  ctx.arcTo(x, y, x + w, y, r);
+  ctx.closePath();
+}
+
+function draw() {
+  const C = CONFIG.colors;
+  ctx.setTransform(view.scale * view.dpr, 0, 0, view.scale * view.dpr, 0, 0);
+  ctx.fillStyle = C.hud;
+  ctx.fillRect(0, 0, W, H);
+
+  ctx.save();
+  ctx.translate(0, CONFIG.hud.height);
+  ctx.beginPath(); ctx.rect(0, 0, WORLD_W, WORLD_H); ctx.clip();   // keep the arena out of the scoreboard
+  if (shake > 0) ctx.translate(rand(-shake, shake), rand(-shake, shake));
+
+  // floor: soft checkerboard
+  ctx.fillStyle = C.floor;
+  ctx.fillRect(-20, -20, WORLD_W + 40, WORLD_H + 40);
+  ctx.fillStyle = C.floorAlt;
+  for (let r = 0; r < M.rows; r++) for (let c = 0; c < M.cols; c++) {
+    if ((r + c) % 2) ctx.fillRect(M.wall / 2 + c * M.cell, M.wall / 2 + r * M.cell, M.cell, M.cell);
+  }
+
+  if (maze) {
+    for (const p of powerups) drawPowerup(p);
+    drawWalls();
+    for (const t of tanks) if (!t.alive) drawWreck(t);
+    for (const s of shells) drawShell(s);
+    for (const t of tanks) if (t.alive) drawTank(t);
+  }
+  drawParticles();
+  for (const p of popups) drawText(p.text, p.x, p.y, 16, p.color, Math.min(1, p.t * 2));
+  if (banner && state !== "menu") {
+    const a = Math.min(1, banner.t * 3);
+    drawText(banner.text, WORLD_W / 2, WORLD_H / 2 - 12, 52, banner.color || "#ffcf3f", a);
+    if (banner.sub) drawText(banner.sub, WORLD_W / 2, WORLD_H / 2 + 38, 28, "#ffffff", a);
+  }
+  ctx.restore();
+
+  drawHud();
+}
+
+function drawWalls() {
+  const C = CONFIG.colors, rects = maze.rects, R = M.wall / 2;
+  ctx.fillStyle = C.wallShadow;
+  for (const w of rects) { rr(w.x + 3, w.y + 5, w.w, w.h, R); ctx.fill(); }
+  ctx.fillStyle = C.wall;
+  for (const w of rects) { rr(w.x, w.y, w.w, w.h, R); ctx.fill(); }
+  ctx.fillStyle = C.wallTop;   // shiny highlight on top
+  for (const w of rects) { rr(w.x + 2, w.y + 2, w.w - 4, Math.min(w.h - 4, 3), 1.5); ctx.fill(); }
+}
+
+function drawTank(t) {
+  ctx.save();
+  ctx.translate(t.x, t.y);
+
+  // shadow
+  ctx.fillStyle = "rgba(60,40,20,.18)";
+  ctx.beginPath(); ctx.ellipse(2, 4, 19, 17, 0, 0, Math.PI * 2); ctx.fill();
+
+  // speed lines
+  if (t.boost > 0) {
+    ctx.save(); ctx.rotate(t.angle);
+    ctx.strokeStyle = "rgba(78,224,106,.8)"; ctx.lineWidth = 3; ctx.lineCap = "round";
+    for (let i = -1; i <= 1; i++) {
+      const wob = Math.sin(time * 30 + i) * 3;
+      ctx.beginPath(); ctx.moveTo(-20 - wob, i * 8); ctx.lineTo(-30 - wob, i * 8); ctx.stroke();
+    }
+    ctx.restore();
+  }
+
+  ctx.rotate(t.angle);
+  ctx.lineWidth = 2.5; ctx.strokeStyle = t.dark;
+
+  // treads (with little moving stripes)
+  for (const side of [-1, 1]) {
+    ctx.fillStyle = "#4a4560";
+    rr(-16, side * 11 - 5, 32, 10, 5); ctx.fill(); ctx.stroke();
+    ctx.save(); rr(-16, side * 11 - 5, 32, 10, 5); ctx.clip();
+    ctx.strokeStyle = "#6e6890"; ctx.lineWidth = 2;
+    const off = t.tread % 6;
+    for (let x = -18 + off; x < 18; x += 6) { ctx.beginPath(); ctx.moveTo(x, side * 11 - 5); ctx.lineTo(x, side * 11 + 5); ctx.stroke(); }
+    ctx.restore();
+  }
+  ctx.strokeStyle = t.dark; ctx.lineWidth = 2.5;
+
+  // body
+  ctx.fillStyle = t.color;
+  rr(-14, -10, 28, 20, 8); ctx.fill(); ctx.stroke();
+  ctx.fillStyle = t.light;
+  rr(-10, -7, 12, 4, 2); ctx.fill();
+
+  // barrel (glows while Rapid Fire is on, chunky when a Big Shell is loaded)
+  const bw = t.bigShots > 0 ? 9 : 6;
+  ctx.fillStyle = t.rapid > 0 ? "#ffb31a" : t.flash > 0 ? "#fff" : t.dark;
+  rr(2, -bw / 2, 20, bw, bw / 2); ctx.fill();
+  ctx.strokeStyle = "rgba(0,0,0,.25)"; ctx.lineWidth = 1.5; ctx.stroke();
+
+  // turret with a cute face
+  ctx.strokeStyle = t.dark; ctx.lineWidth = 2.5;
+  ctx.fillStyle = t.light;
+  ctx.beginPath(); ctx.arc(0, 0, 8.5, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+  ctx.fillStyle = "#fff";
+  ctx.beginPath(); ctx.arc(2.5, -3.2, 2.6, 0, Math.PI * 2); ctx.arc(2.5, 3.2, 2.6, 0, Math.PI * 2); ctx.fill();
+  ctx.fillStyle = "#2a2550";
+  ctx.beginPath(); ctx.arc(3.4, -3.2, 1.3, 0, Math.PI * 2); ctx.arc(3.4, 3.2, 1.3, 0, Math.PI * 2); ctx.fill();
+  ctx.restore();
+
+  // shield bubble
+  if (t.shield) {
+    ctx.save();
+    const pulse = 1 + Math.sin(time * 6) * 0.05;
+    ctx.fillStyle = "rgba(51,214,232,.18)"; ctx.strokeStyle = "rgba(26,169,187,.85)"; ctx.lineWidth = 2.5;
+    ctx.beginPath(); ctx.arc(t.x, t.y, 24 * pulse, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+    ctx.restore();
+  }
+}
+
+function drawWreck(t) {
+  ctx.save();
+  ctx.translate(t.x, t.y); ctx.rotate(t.angle);
+  ctx.fillStyle = "rgba(40,35,55,.75)";
+  rr(-15, -14, 30, 28, 9); ctx.fill();
+  ctx.fillStyle = "rgba(40,35,55,.5)";
+  ctx.beginPath(); ctx.arc(-5, 8, 9, 0, Math.PI * 2); ctx.arc(7, -6, 7, 0, Math.PI * 2); ctx.fill();
+  ctx.restore();
+}
+
+function drawShell(s) {
+  const col = CONFIG.players[s.owner].dark;
+  ctx.fillStyle = "rgba(60,40,20,.2)";
+  ctx.beginPath(); ctx.arc(s.x + 2, s.y + 3, s.r, 0, Math.PI * 2); ctx.fill();
+  ctx.fillStyle = s.big ? "#ff5a5a" : CONFIG.colors.shell;
+  ctx.strokeStyle = col; ctx.lineWidth = s.big ? 3 : 1.5;
+  ctx.beginPath(); ctx.arc(s.x, s.y, s.r, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+  ctx.fillStyle = "rgba(255,255,255,.7)";
+  ctx.beginPath(); ctx.arc(s.x - s.r * .3, s.y - s.r * .3, s.r * .35, 0, Math.PI * 2); ctx.fill();
+}
+
+function drawPowerup(p) {
+  const info = POWERUPS[p.kind], R = CONFIG.powerups.radius;
+  const fade = CONFIG.powerups.lastsOnField - p.age;
+  if (fade < 3 && Math.floor(p.age * 8) % 2) return;     // blink before vanishing
+  const bob = Math.sin(time * 4 + p.x) * 3;
+  const pop = Math.min(1, p.age * 4);
+  ctx.save();
+  ctx.translate(p.x, p.y + bob);
+  ctx.scale(pop, pop);
+  ctx.fillStyle = "rgba(60,40,20,.18)";
+  ctx.beginPath(); ctx.ellipse(0, 14 - bob, 12, 4, 0, 0, Math.PI * 2); ctx.fill();
+  ctx.fillStyle = info.color; ctx.strokeStyle = "#fff"; ctx.lineWidth = 3;
+  ctx.beginPath(); ctx.arc(0, 0, R, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+  drawPowerIcon(p.kind, 0, 0, 1);
+  ctx.restore();
+}
+
+// Small hand-drawn icons (no images or emoji fonts needed)
+function drawPowerIcon(kind, x, y, s) {
+  ctx.save();
+  ctx.translate(x, y); ctx.scale(s, s);
+  ctx.fillStyle = "#fff"; ctx.strokeStyle = "#fff"; ctx.lineWidth = 2.5; ctx.lineJoin = "round"; ctx.lineCap = "round";
+  if (kind === "rapid") {               // lightning bolt
+    ctx.beginPath(); ctx.moveTo(2, -9); ctx.lineTo(-5, 1); ctx.lineTo(0, 1); ctx.lineTo(-2, 9); ctx.lineTo(5, -1); ctx.lineTo(0, -1); ctx.closePath(); ctx.fill();
+  } else if (kind === "shield") {       // shield
+    ctx.beginPath(); ctx.moveTo(0, -8); ctx.lineTo(7, -5); ctx.quadraticCurveTo(7, 5, 0, 9); ctx.quadraticCurveTo(-7, 5, -7, -5); ctx.closePath(); ctx.fill();
+  } else if (kind === "big") {          // big ball with a small one
+    ctx.beginPath(); ctx.arc(-1, 1, 6.5, 0, Math.PI * 2); ctx.fill();
+    ctx.beginPath(); ctx.arc(6.5, -6, 2.5, 0, Math.PI * 2); ctx.fill();
+  } else {                              // speed: double chevron
+    ctx.beginPath(); ctx.moveTo(-6, -6); ctx.lineTo(0, 0); ctx.lineTo(-6, 6); ctx.moveTo(1, -6); ctx.lineTo(7, 0); ctx.lineTo(1, 6); ctx.stroke();
+  }
+  ctx.restore();
+}
+
+function drawParticles() {
+  for (const p of particles) {
+    const a = clamp(p.life / p.max, 0, 1);
+    ctx.globalAlpha = a;
+    if (p.ring) {
+      ctx.strokeStyle = p.color; ctx.lineWidth = 6 * a + 1;
+      ctx.beginPath(); ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2); ctx.stroke();
+    } else if (p.square) {
+      ctx.save(); ctx.translate(p.x, p.y); ctx.rotate(p.rot); ctx.fillStyle = p.color;
+      ctx.fillRect(-p.r, -p.r, p.r * 2, p.r * 2); ctx.restore();
+    } else {
+      ctx.fillStyle = p.color;
+      ctx.beginPath(); ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2); ctx.fill();
+    }
+  }
+  ctx.globalAlpha = 1;
+}
+
+function drawText(text, x, y, size, color, alpha = 1) {
+  ctx.save();
+  ctx.globalAlpha = alpha;
+  ctx.font = `bold ${size}px "Arial Rounded MT Bold", "Trebuchet MS", system-ui, sans-serif`;
+  ctx.textAlign = "center"; ctx.textBaseline = "middle";
+  ctx.lineJoin = "round"; ctx.lineWidth = size / 5; ctx.strokeStyle = "#2a2550";
+  ctx.strokeText(text, x, y);
+  ctx.fillStyle = color; ctx.fillText(text, x, y);
+  ctx.restore();
+}
+
+// Scoreboard: name + win pips for each player, and their active power-ups
+function drawHud() {
+  const Hh = CONFIG.hud.height, need = CONFIG.match.winsNeeded;
+  for (let i = 0; i < 2; i++) {
+    const p = CONFIG.players[i], left = i === 0;
+    const t = tanks[i];
+    ctx.save();
+    ctx.font = 'bold 22px "Arial Rounded MT Bold", "Trebuchet MS", system-ui, sans-serif';
+    ctx.textBaseline = "middle"; ctx.textAlign = left ? "left" : "right";
+    const nx = left ? 18 : W - 18;
+    // little tank badge
+    const bx = left ? nx + 12 : nx - 12;
+    ctx.fillStyle = p.color; ctx.strokeStyle = "#fff"; ctx.lineWidth = 3;
+    ctx.beginPath(); ctx.arc(bx, Hh / 2, 13, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+    ctx.fillStyle = "#fff";
+    ctx.fillText(names[i], left ? nx + 32 : nx - 32, 21);
+    // win pips
+    for (let k = 0; k < need; k++) {
+      const px = left ? nx + 40 + k * 22 : nx - 40 - k * 22;
+      ctx.beginPath(); ctx.arc(px, 46, 8, 0, Math.PI * 2);
+      ctx.fillStyle = k < scores[i] ? p.color : "rgba(255,255,255,.15)";
+      ctx.fill();
+      ctx.lineWidth = 2; ctx.strokeStyle = k < scores[i] ? "#fff" : "rgba(255,255,255,.3)"; ctx.stroke();
+    }
+    // power-up badges with time left
+    if (t && t.alive) {
+      const active = [];
+      if (t.rapid > 0) active.push(["rapid", t.rapid / CONFIG.powerups.rapidTime]);
+      if (t.shield) active.push(["shield", 1]);
+      if (t.bigShots > 0) active.push(["big", 1]);
+      if (t.boost > 0) active.push(["speed", t.boost / CONFIG.powerups.speedTime]);
+      active.forEach(([kind, frac], j) => {
+        const cx = left ? nx + 40 + need * 22 + 14 + j * 30 : nx - 40 - need * 22 - 14 - j * 30;
+        ctx.fillStyle = POWERUPS[kind].color;
+        ctx.beginPath(); ctx.arc(cx, 46, 11, 0, Math.PI * 2); ctx.fill();
+        ctx.strokeStyle = "#fff"; ctx.lineWidth = 3;
+        ctx.beginPath(); ctx.arc(cx, 46, 12.5, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * frac); ctx.stroke();
+        drawPowerIcon(kind, cx, 46, 0.7);
+      });
+    }
+    ctx.restore();
+  }
+}
+
+/* =====================================================================
+   SCREENS
+   ===================================================================== */
+function showWinner(i) {
+  state = "matchover";
+  $("winTitle").textContent = names[i] + " wins!";
+  $("winTitle").style.color = CONFIG.players[i].dark;
+  $("winScore").textContent = names[0] + " " + scores[0] + " – " + scores[1] + " " + names[1];
+  $("win").hidden = false;
+  Sound.fanfare();
+}
+
+$("winsNeeded").textContent = CONFIG.match.winsNeeded;
+try {
+  $("name1").value = localStorage.getItem("tankBattleName1") || "";
+  $("name2").value = localStorage.getItem("tankBattleName2") || "";
+} catch (e) {}
+
+$("menuForm").addEventListener("submit", e => {
+  e.preventDefault();
+  names = [
+    $("name1").value.trim() || CONFIG.players[0].defaultName,
+    $("name2").value.trim() || CONFIG.players[1].defaultName,
+  ];
+  try {
+    localStorage.setItem("tankBattleName1", $("name1").value.trim());
+    localStorage.setItem("tankBattleName2", $("name2").value.trim());
+  } catch (e) {}
+  startMatch();
+});
+$("againBtn").addEventListener("click", startMatch);
+$("namesBtn").addEventListener("click", () => {
+  $("win").hidden = true; $("menu").hidden = false; state = "menu";
+});
+
+function toggleMute() {
+  Sound.init();
+  Sound.setMuted(!Sound.muted);
+  $("mute").textContent = Sound.muted ? "🔇" : "🔊";
+}
+$("mute").textContent = Sound.muted ? "🔇" : "🔊";
+$("mute").addEventListener("click", e => { toggleMute(); e.currentTarget.blur(); });
+
+/* =====================================================================
+   SCALING: fit the window, keep proportions, stay crisp on retina screens
+   ===================================================================== */
+const view = { scale: 1, dpr: 1 };
+function resize() {
+  const vw = innerWidth, vh = innerHeight, gap = 8;
+  let scale = Math.min((vw - gap * 2) / W, (vh - gap * 2) / H);
+  let areaH = vh;
+  if (isMobile()) {
+    // Leave room for the two touch pads: either under the arena or beside it, whichever is bigger.
+    const PAD_W = 190, PAD_H = 128;
+    const full = scale, sideGutter = (vw - W * full) / 2;
+    if (sideGutter < PAD_W) {
+      const below = Math.min((vw - gap * 2) / W, (vh - PAD_H - gap) / H);
+      const beside = Math.min((vw - PAD_W * 2) / W, (vh - gap * 2) / H);
+      if (below >= beside) { scale = below; areaH = vh - PAD_H; } else scale = beside;
+    }
+  }
+  scale = Math.max(0.1, scale);
+  const cw = W * scale, ch = H * scale;
+  const wrap = $("wrap");
+  wrap.style.width = cw + "px"; wrap.style.height = ch + "px";
+  wrap.style.left = (vw - cw) / 2 + "px";
+  wrap.style.top = Math.max(gap / 2, (areaH - ch) / 2) + "px";
+  view.scale = scale;
+  view.dpr = Math.min(window.devicePixelRatio || 1, 2);
+  cv.width = Math.round(cw * view.dpr); cv.height = Math.round(ch * view.dpr);
+  // mute button sits in the middle of the scoreboard
+  const mb = $("mute"), size = Math.max(28, 40 * scale);
+  mb.style.width = mb.style.height = size + "px";
+  mb.style.top = (CONFIG.hud.height * scale * 0.5 - size / 2) + "px";
+  mb.style.fontSize = size * 0.5 + "px";
+}
+addEventListener("resize", resize);
+addEventListener("orientationchange", () => setTimeout(resize, 200));
+
+/* =====================================================================
+   TOUCH MODE: two joysticks + FIRE buttons via the arcade's shared helper
+   ===================================================================== */
+if (isMobile()) {
+  // mobile controls must never break the game itself
+  try {
+    const pad = i => {
+      const k = CONFIG.players[i].keys;
+      return { name: i === 0 ? "GREEN" : "BLUE", color: CONFIG.players[i].color,
+        stick: { up: k.forward[0], down: k.back[0], left: k.left[0], right: k.right[0] },
+        buttons: [{ label: "FIRE", code: k.fire[0], big: true }] };
+    };
+    CousinMode.multiPad({
+      players: [pad(0), pad(1)],
+      count: () => 2,
+      visible: () => state === "playing" || state === "roundover",
+    });
+  } catch (err) { console.error("mobile controls:", err); }
+}
+
+/* =====================================================================
+   MAIN LOOP
+   ===================================================================== */
+generateMaze();               // a maze to look at behind the start screen
+resize();
+let last = performance.now();
+function frame(now) {
+  const dt = Math.min(1 / 30, (now - last) / 1000);   // cap so a hiccup can't teleport things through walls
+  last = now;
+  if (state === "playing" || state === "roundover") update(dt);
+  else { time += dt; updateEffects(dt); }
+  draw();
+  requestAnimationFrame(frame);
+}
+requestAnimationFrame(frame);
+
+// handy for tweaking and testing from the browser console
+window.TankBattle = { CONFIG, get state() { return state; }, get tanks() { return tanks; },
+  get shells() { return shells; }, get scores() { return scores; }, get maze() { return maze; }, connected, generateMaze };
+})();
+</script>
+</body>
+</html>
