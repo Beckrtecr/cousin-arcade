@@ -1,0 +1,1580 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<title>Sock Gobbler — Cousin Arcade</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body {
+    width: 100%; height: 100%; overflow: hidden;
+    font-family: "Arial Rounded MT Bold", "Trebuchet MS", "Segoe UI", system-ui, sans-serif;
+    color: #3b2a5a; -webkit-tap-highlight-color: transparent;
+    overscroll-behavior: none;
+  }
+  body { background: radial-gradient(circle at 50% 25%, #7b5cc4, #3a2470 75%); }
+  /* While playing (or whenever touch mode is on) the page must not scroll or zoom */
+  html.playing, html.playing body, html.touch body { touch-action: none; -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; }
+
+  #wrap { position: absolute; border-radius: 14px; overflow: hidden; box-shadow: 0 10px 40px rgba(0,0,0,.45); }
+  #cv { display: block; width: 100%; height: 100%; }
+  .hudBtn {
+    position: absolute; top: 0; border: 3px solid #fff; border-radius: 50%; background: #ffcf3f; cursor: pointer;
+    display: grid; place-items: center; line-height: 1; box-shadow: 0 3px 0 rgba(0,0,0,.25); padding: 0;
+    color: #3b2a5a; font-family: inherit;
+  }
+  .hudBtn:active { transform: scale(.92); }
+
+  /* On-screen D-pad (touch mode only, optional) */
+  #dpad { position: absolute; display: none; touch-action: none; }
+  html.touch.dpad #dpad { display: block; }
+  #dpad button {
+    position: absolute; width: 34%; height: 34%; border-radius: 26%; border: 3px solid rgba(255,255,255,.7);
+    background: rgba(255,255,255,.2); color: #fff; font-size: 26px; font-weight: bold; display: grid; place-items: center;
+    touch-action: none; box-shadow: 0 4px 0 rgba(0,0,0,.25); padding: 0;
+  }
+  #dpad button.on { background: rgba(255, 207, 63, .85); color: #3b2a5a; transform: scale(.95); }
+  #dpad .u { left: 33%; top: 0; } #dpad .d { left: 33%; bottom: 0; }
+  #dpad .l { left: 0; top: 33%; } #dpad .r { right: 0; top: 33%; }
+  #dpad .hub { position: absolute; left: 38%; top: 38%; width: 24%; height: 24%; border-radius: 50%; background: rgba(255,255,255,.12); }
+
+  /* Start, game over screens */
+  .overlay {
+    position: fixed; inset: 0; z-index: 10; display: flex; align-items: center; justify-content: center;
+    background: rgba(40, 22, 80, .55); padding: 14px; overflow: auto; touch-action: pan-y;
+  }
+  .overlay[hidden] { display: none; }
+  .card {
+    background: #fff8ee; border: 5px solid #3b2a5a; border-radius: 26px; padding: 18px 22px;
+    width: min(640px, 100%); max-height: 100%; overflow: auto; text-align: center;
+    box-shadow: 0 10px 0 rgba(0,0,0,.25); -webkit-overflow-scrolling: touch;
+  }
+  h1 { font-size: clamp(28px, 7vw, 44px); line-height: 1.05; color: #7a3fd1; text-shadow: 2px 2px 0 #ffd35c; }
+  h1 small { display: block; font-size: .45em; color: #3b2a5a; text-shadow: none; margin-top: 4px; letter-spacing: .04em; }
+  .cols { display: flex; gap: 14px; flex-wrap: wrap; margin-top: 12px; text-align: left; }
+  .cols > div { flex: 1 1 240px; }
+  .how { background: #f1e8ff; border-radius: 16px; padding: 10px 12px; font-size: 14px; line-height: 1.55; }
+  .how b { color: #7a3fd1; }
+  .how ul { padding-left: 18px; }
+  kbd {
+    display: inline-block; min-width: 22px; padding: 0 5px; border: 2px solid #3b2a5a; border-bottom-width: 4px;
+    border-radius: 7px; background: #fff; font: bold 11px/16px system-ui, sans-serif; text-align: center;
+  }
+  label.name { display: block; font-weight: bold; font-size: 15px; }
+  label.name input {
+    display: block; width: 100%; margin-top: 4px; font: inherit; font-size: 18px; padding: 8px 12px;
+    border: 3px solid #7a3fd1; border-radius: 14px; background: #fff; color: #3b2a5a; outline: none;
+  }
+  .toggles { margin-top: 10px; display: flex; flex-direction: column; gap: 6px; font-size: 15px; }
+  .toggles label { display: flex; align-items: center; gap: 8px; cursor: pointer; }
+  .toggles input { width: 22px; height: 22px; accent-color: #7a3fd1; }
+  .toggles .sub { padding-left: 30px; font-size: 14px; }
+  html:not(.touch) .toggles .sub { opacity: .45; }
+  html.touch .keysHelp .kb, html:not(.touch) .keysHelp .tc { display: none; }
+  table.scores { width: 100%; border-collapse: collapse; font-size: 14px; margin-top: 4px; }
+  table.scores th { text-align: left; color: #7a3fd1; font-size: 13px; border-bottom: 2px solid #e3d5ff; padding: 2px 4px; }
+  table.scores td { padding: 2px 4px; border-bottom: 1px dashed #eadff9; }
+  table.scores td:last-child, table.scores th:last-child { text-align: right; }
+  table.scores tr.me td { background: #fff1a8; font-weight: bold; }
+  .scoresBox h3 { font-size: 16px; margin-top: 10px; color: #3b2a5a; }
+  .empty { font-size: 13px; color: #8a7aa8; padding: 6px 0; }
+  .btn {
+    margin-top: 14px; font: inherit; font-size: 22px; font-weight: bold; color: #fff; cursor: pointer;
+    background: #ff6b9a; border: 4px solid #3b2a5a; border-radius: 18px; padding: 10px 30px;
+    box-shadow: 0 5px 0 #3b2a5a; transition: transform .05s;
+  }
+  .btn:active { transform: translateY(4px); box-shadow: 0 1px 0 #3b2a5a; }
+  .btn.small { font-size: 15px; padding: 6px 16px; background: #8f63e0; margin-left: 8px; }
+  #overTitle { font-size: clamp(30px, 8vw, 46px); font-weight: bold; color: #7a3fd1; }
+  #overScore { font-size: 22px; margin-top: 4px; }
+  #overNote { font-size: 16px; margin-top: 4px; color: #d14a7a; font-weight: bold; min-height: 1.2em; }
+  .overScores { max-width: 360px; margin: 0 auto; text-align: left; }
+</style>
+</head>
+<body>
+<div id="wrap">
+  <canvas id="cv"></canvas>
+  <button class="hudBtn" id="pauseBtn" title="Pause (P)" aria-label="Pause">❚❚</button>
+  <button class="hudBtn" id="muteBtn" title="Sound on/off (M)" aria-label="Sound on/off">🔊</button>
+</div>
+<div id="dpad" aria-hidden="true">
+  <div class="hub"></div>
+  <button class="u" data-dir="0">▲</button>
+  <button class="l" data-dir="1">◀</button>
+  <button class="d" data-dir="2">▼</button>
+  <button class="r" data-dir="3">▶</button>
+</div>
+
+<!-- START SCREEN -->
+<div class="overlay" id="menu">
+  <form class="card" id="menuForm" autocomplete="off">
+    <h1>Sock Gobbler <small>— Cousin Arcade</small></h1>
+    <div class="cols">
+      <div class="how">
+        <b>How to play</b>
+        <ul>
+          <li>You are <b>Gobbles</b>, a fuzzy sock monster. Gobble every lost sock on the laundry room floor to clear the level.</li>
+          <li>Dodge the Dust Bunnies: <b style="color:#e0474c">Fuzz</b> chases you, <b style="color:#1ea89c">Lint</b> sneaks ahead, <b style="color:#e8891a">Clump</b> wanders, and <b style="color:#c9a200">Static</b> gets faster as the level goes on.</li>
+          <li>Grab a <b>Dryer Sheet</b> and the bunnies get fluffed. Bounce them back to the lint trap for 200, 400, 800, 1600!</li>
+          <li>Snack on the duck, coin and cookie when they pop up. Extra life at 10,000. The dryer vents on the sides wrap you across.</li>
+        </ul>
+        <div class="keysHelp" style="margin-top:6px">
+          <span class="kb"><kbd>←</kbd><kbd>↑</kbd><kbd>↓</kbd><kbd>→</kbd> or <kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> to move, <kbd>P</kbd> pause, <kbd>M</kbd> mute.</span>
+          <span class="tc">Swipe anywhere on the screen to turn, or use the D-pad. Tap ❚❚ to pause.</span>
+        </div>
+      </div>
+      <div>
+        <label class="name">Your name<input id="nameInput" maxlength="12" placeholder="Your name"></label>
+        <div class="toggles">
+          <label><input type="checkbox" id="touchToggle"> Touch controls (swipe to turn)</label>
+          <label class="sub"><input type="checkbox" id="dpadToggle" checked> Show on-screen D-pad</label>
+        </div>
+        <div class="scoresBox">
+          <h3>🏆 Top Gobblers</h3>
+          <div id="menuScores"></div>
+        </div>
+      </div>
+    </div>
+    <button class="btn" type="submit">Start Gobbling!</button>
+  </form>
+</div>
+
+<!-- GAME OVER SCREEN -->
+<div class="overlay" id="over" hidden>
+  <div class="card">
+    <div id="overTitle">Game Over</div>
+    <div id="overScore">0 points</div>
+    <div id="overNote"></div>
+    <div class="overScores scoresBox"><h3>🏆 Top Gobblers</h3><div id="overScores"></div></div>
+    <button class="btn" id="againBtn">Play Again</button>
+    <button class="btn small" id="menuBtn">Menu</button>
+  </div>
+</div>
+
+<!-- The arcade's shared PC/mobile switch helper. Always fetch the newest copy; the game works without it. -->
+<script>try { document.write('<script src="../../mobile-mode.js?v=' + Date.now() + '"><\/script>'); } catch (e) {}</script>
+<script>
+(() => {
+"use strict";
+
+/* =====================================================================
+   CONFIG: every number you might want to tweak lives here.
+   Speeds are in tiles per second, times are in seconds.
+   ===================================================================== */
+const CONFIG = {
+  tile: 24,                    // size of one maze tile in game pixels (the canvas scales to fit the screen)
+  hudTop: 44,                  // scoreboard height above the maze
+  hudBottom: 36,               // lives bar height below the maze
+  lives: 3,
+  extraLifeAt: 10000,          // one bonus life when you reach this score
+  playerSpeed: 7.2,
+  bunnySpeed: 6.4,             // Dust Bunny speed on level 1
+  bunnySpeedPerLevel: 0.06,    // +6% each level ...
+  bunnySpeedMax: 1.45,         // ... up to 45% faster than level 1
+  tunnelSlow: 0.55,            // bunnies crawl through the dryer vent at this fraction of their speed
+  fluffedSpeed: 0.55,          // fluffed bunnies move at this fraction of their speed
+  returnSpeed: 15,             // bounced bunnies zip back to the lint trap this fast
+  houseSpeed: 3,               // speed while bobbing out of the lint trap
+  fluffTime: 6,                // how long a Dryer Sheet keeps the bunnies fluffed
+  fluffWarn: 2,                // fluffed bunnies flash for the last this-many seconds
+  staticBoostPerSec: 0.006,    // Static gets 0.6% faster every second of the level ...
+  staticBoostMax: 0.4,         // ... up to 40% faster
+  releaseTimes: [0, 1.5, 5, 9],// seconds after each start before Fuzz, Lint, Clump, Static leave the lint trap
+  releaseShrinkPerLevel: 0.12, // later levels let them out sooner
+  modes: [7, 20, 7, 20, 5, 20, 5], // alternating "wander to corner" / "chase" times, then chase forever
+  lintLookAhead: 4,            // how many tiles ahead of Gobbles Lint aims
+  catchDistance: 0.62,         // how close (in tiles) a bunny has to be to touch Gobbles
+  bonusTime: 9,                // how long a bonus item stays out
+  bonusAt: [0.3, 0.7],         // a bonus item appears when this fraction of socks is gone
+  readyTime: 2.2,              // "READY!" pause
+  dieTime: 1.8,                // Gobbles' wobbly faint
+  clearTime: 2.2,              // maze flashes when cleared
+  bounceFreeze: 0.45,          // tiny pause when you bounce a bunny
+  points: {
+    sock: 10,
+    dryerSheet: 50,
+    bunnies: [200, 400, 800, 1600], // 1st, 2nd, 3rd, 4th fluffed bunny in a row
+    bonus: { duck: 100, coin: 300, cookie: 500 },
+  },
+  swipeDistance: 18,           // pixels a finger must move to count as a swipe
+  maxScores: 10,
+  colors: {
+    floorA: "#fde7c8", floorB: "#f9dcb6", grout: "rgba(180,120,70,.10)",
+    roomWall: "#7aa7d9", roomWallTop: "#a9cbef", roomWallEdge: "#3f6697",
+    hud: "#3b2a5a", hudText: "#fff8ee", hudAccent: "#ffd35c",
+    gobbles: "#9b59e6", gobblesDark: "#6a2fb8", gobblesLight: "#c79bff",
+    bunny: "#9d9aab", bunnyDark: "#6c6878", fluffed: "#ffffff", fluffedFlash: "#bfe3ff",
+  },
+};
+
+/* =====================================================================
+   MAZES: edit these text grids to change the levels. Every row must be
+   the same length. Each new level uses the next maze (then they repeat).
+     #  room wall / cabinet     W  washing machine
+     B  laundry basket          T  pile of folded towels
+     .  lost sock               o  Dryer Sheet (power-up)
+     (space) empty floor        P  where Gobbles starts
+     H  inside the lint trap    -  lint trap door (only bunnies use it)
+     *  where bonus items pop up
+   Plain '#' blocks inside the room are drawn as washers, baskets or towels
+   automatically, depending on their shape. A row that is open at both
+   ends is a dryer vent tunnel that wraps around.
+   ===================================================================== */
+const MAZES = [
+  {
+    name: "Laundry Day",
+    grid: [
+      "###################",
+      "#o.......#.......o#",
+      "#.WW.BBB.#.BBB.WW.#",
+      "#.WW.BBB.#.BBB.WW.#",
+      "#.................#",
+      "#.TT.#.TTTTT.#.TT.#",
+      "#....#...#...#....#",
+      "####.###.#.###.####",
+      "####...........####",
+      "#####.###-###.#####",
+      "     .#HHHHH#.     ",
+      "#####.#######.#####",
+      "####.....*.....####",
+      "#....#.#####.#....#",
+      "#.TT.#.#####.#.TT.#",
+      "#o.#.....P.....#.o#",
+      "##.#.###.#.###.#.##",
+      "#..#...#...#...#..#",
+      "#.####.#.#.#.####.#",
+      "#........#........#",
+      "###################",
+    ],
+  },
+  {
+    name: "Spin Cycle",
+    grid: [
+      "###################",
+      "#o...#.......#...o#",
+      "#.##.#.##.##.#.##.#",
+      "#.##...........##.#",
+      "#....#.#####.#....#",
+      "#.##.#...#...#.##.#",
+      "#.##.###.#.###.##.#",
+      "#.....##.#.##.....#",
+      "###.#.........#.###",
+      "###.#.###-###.#.###",
+      "     .#HHHHH#.     ",
+      "###.#.#######.#.###",
+      "#...#....*....#...#",
+      "#.#.#.##.#.##.#.#.#",
+      "#o#.#.##.#.##.#.#o#",
+      "#...#....P....#...#",
+      "#.#.#.##.#.##.#.#.#",
+      "#.#...##.#.##...#.#",
+      "#.#.#.##.#.##.#.#.#",
+      "#.................#",
+      "###################",
+    ],
+  },
+  {
+    name: "Towel Tower",
+    grid: [
+      "###################",
+      "#o...............o#",
+      "#.#.###.###.###.#.#",
+      "#.#.###.....###.#.#",
+      "#...#...#.#...#...#",
+      "###.#.#.#.#.#.#.###",
+      "  ....#.....#....  ",
+      "#.###.#.###.#.###.#",
+      "#.###.........###.#",
+      "#...#.###-###.#...#",
+      "###.#.#HHHHH#.#.###",
+      "#...#.#######.#...#",
+      "#.##.....*.....##.#",
+      "#.##.#.#.#.#.#.##.#",
+      "#o##.#.#.#.#.#.##o#",
+      "#....#...P...#....#",
+      "##.###.#.#.#.###.##",
+      "#...#..#.#.#..#...#",
+      "#.#.#.##.#.##.#.#.#",
+      "#.................#",
+      "###################",
+    ],
+  },
+  {
+    name: "Sock Drawer",
+    grid: [
+      "###################",
+      "#o...#...#...#...o#",
+      "#.##.#.#.#.#.#.##.#",
+      "#.##...#...#...##.#",
+      "  ...#.#.#.#.#...  ",
+      "##.#.....#.....#.##",
+      "#..#.###.#.###.#..#",
+      "#.##...........##.#",
+      "#.##.####-####.##.#",
+      "#.##.#HHHHHHH#.##.#",
+      "#.##.#########.##.#",
+      "#........*........#",
+      "#.##.###.#.###.##.#",
+      "#.##.###.#.###.##.#",
+      "#.##...#.#.#...##.#",
+      "#o.###.#.P.#.###.o#",
+      "##.....#.#.#.....##",
+      "#..###...#...###..#",
+      "#.#####.###.#####.#",
+      "#.................#",
+      "###################",
+    ],
+  },];
+
+/* =====================================================================
+   SET-UP AND HELPERS
+   ===================================================================== */
+const T = CONFIG.tile;
+const COLS = MAZES[0].grid[0].length, ROWS = MAZES[0].grid.length;
+const W = COLS * T, MAZE_H = ROWS * T, H = CONFIG.hudTop + MAZE_H + CONFIG.hudBottom;
+const DX = [0, -1, 0, 1], DY = [-1, 0, 1, 0];     // directions: 0 up, 1 left, 2 down, 3 right
+const REV = d => (d + 2) % 4;
+const $ = id => document.getElementById(id);
+const cv = $("cv"), ctx = cv.getContext("2d");
+const rand = (a, b) => a + Math.random() * (b - a);
+const clamp = (v, a, b) => v < a ? a : v > b ? b : v;
+const wrapCol = c => ((c % COLS) + COLS) % COLS;
+const store = {   // localStorage can throw (private mode, blocked storage), so every use is wrapped
+  get(k, d) { try { const v = localStorage.getItem(k); return v === null ? d : JSON.parse(v); } catch (e) { return d; } },
+  set(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) {} },
+};
+// Does the arcade's PC/mobile switch (or this device) say "touch"?
+function siteSaysTouch() {
+  try { if (window.CousinMode) return CousinMode.isMobile(); } catch (e) {}
+  try { return matchMedia("(pointer: coarse)").matches || "ontouchstart" in window; } catch (e) { return false; }
+}
+
+/* =====================================================================
+   SOUND: cheerful little synth effects made with the Web Audio API.
+   Audio starts on the first tap or key press (browsers require that).
+   ===================================================================== */
+const Sound = {
+  ac: null, master: null, noise: null, sockFlip: false, lastSock: 0,
+  muted: store.get("sockGobblerMuted", false),
+  init() {
+    if (this.ac) { if (this.ac.state === "suspended") this.ac.resume(); return; }
+    const AC = window.AudioContext || window.webkitAudioContext;
+    if (!AC) return;
+    try {
+      this.ac = new AC();
+      this.master = this.ac.createGain();
+      this.master.gain.value = this.muted ? 0 : 0.5;
+      this.master.connect(this.ac.destination);
+      const len = this.ac.sampleRate;
+      this.noise = this.ac.createBuffer(1, len, this.ac.sampleRate);
+      const d = this.noise.getChannelData(0);
+      for (let i = 0; i < len; i++) d[i] = Math.random() * 2 - 1;
+    } catch (e) { this.ac = null; }
+  },
+  setMuted(m) {
+    this.muted = m; store.set("sockGobblerMuted", m);
+    if (this.master) this.master.gain.value = m ? 0 : 0.5;
+  },
+  // one note: frequency slides from f1 to f2, with a quick fade in and out
+  tone(f1, f2, dur, type = "sine", vol = 0.2, delay = 0) {
+    if (!this.ac || this.muted) return;
+    const t = this.ac.currentTime + delay;
+    const o = this.ac.createOscillator(), g = this.ac.createGain();
+    o.type = type;
+    o.frequency.setValueAtTime(f1, t);
+    o.frequency.exponentialRampToValueAtTime(Math.max(20, f2), t + dur);
+    g.gain.setValueAtTime(0.0001, t);
+    g.gain.exponentialRampToValueAtTime(vol, t + 0.012);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+    o.connect(g); g.connect(this.master);
+    o.start(t); o.stop(t + dur + 0.05);
+  },
+  // soft "boop" for each sock, alternating between two friendly notes
+  sock() {
+    if (!this.ac) return;
+    const now = this.ac.currentTime;
+    if (now - this.lastSock < 0.05) return;
+    this.lastSock = now;
+    this.sockFlip = !this.sockFlip;
+    const f = this.sockFlip ? 620 : 540;
+    this.tone(f, f * 0.82, 0.09, "sine", 0.13);
+  },
+  // airy whoosh for the Dryer Sheet: filtered noise sweeping up and down, plus a sparkle
+  whoosh() {
+    if (!this.ac || this.muted) return;
+    const t = this.ac.currentTime;
+    const src = this.ac.createBufferSource(); src.buffer = this.noise;
+    const bp = this.ac.createBiquadFilter(); bp.type = "bandpass"; bp.Q.value = 1.4;
+    bp.frequency.setValueAtTime(300, t);
+    bp.frequency.exponentialRampToValueAtTime(2600, t + 0.28);
+    bp.frequency.exponentialRampToValueAtTime(500, t + 0.7);
+    const g = this.ac.createGain();
+    g.gain.setValueAtTime(0.0001, t);
+    g.gain.exponentialRampToValueAtTime(0.5, t + 0.12);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + 0.75);
+    src.connect(bp); bp.connect(g); g.connect(this.master);
+    src.start(t); src.stop(t + 0.8);
+    [1320, 1660, 1980].forEach((f, i) => this.tone(f, f, 0.18, "triangle", 0.05, 0.15 + i * 0.07));
+  },
+  // goofy "boing" when Gobbles loses a life: a springy wobble that sinks down
+  boing() {
+    if (!this.ac || this.muted) return;
+    const t = this.ac.currentTime;
+    const o = this.ac.createOscillator(), g = this.ac.createGain();
+    const lfo = this.ac.createOscillator(), lg = this.ac.createGain();
+    o.type = "triangle";
+    o.frequency.setValueAtTime(420, t);
+    o.frequency.exponentialRampToValueAtTime(110, t + 0.9);
+    lfo.frequency.setValueAtTime(14, t); lfo.frequency.linearRampToValueAtTime(6, t + 0.9);
+    lg.gain.setValueAtTime(60, t); lg.gain.linearRampToValueAtTime(15, t + 0.9);
+    lfo.connect(lg); lg.connect(o.frequency);
+    g.gain.setValueAtTime(0.0001, t);
+    g.gain.exponentialRampToValueAtTime(0.3, t + 0.02);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + 1.0);
+    o.connect(g); g.connect(this.master);
+    o.start(t); lfo.start(t); o.stop(t + 1.05); lfo.stop(t + 1.05);
+    this.tone(180, 70, 0.35, "sine", 0.18, 1.0);   // little "bonk" at the end
+  },
+  // bunny bounced back to the lint trap: a springy pop that gets higher each time
+  pop(n) {
+    const b = 380 * Math.pow(1.25, n);
+    this.tone(b, b * 2.2, 0.16, "square", 0.07);
+    this.tone(b * 1.5, b * 3, 0.12, "sine", 0.1, 0.08);
+  },
+  sheetHum: 0,
+  bonus() { [784, 988, 1175, 1568].forEach((f, i) => this.tone(f, f, 0.12, "triangle", 0.12, i * 0.07)); },
+  extraLife() { [523, 659, 784, 1047, 1319].forEach((f, i) => this.tone(f, f * 1.01, 0.14, "square", 0.06, i * 0.09)); },
+  // an original little tune for the start of a game
+  jingle() {
+    const notes = [[523, 0], [659, .14], [784, .28], [659, .42], [698, .56], [880, .7], [784, .84], [1047, 1.04]];
+    notes.forEach(([f, d]) => this.tone(f, f, 0.16, "triangle", 0.12, d));
+    [262, 349, 392, 523].forEach((f, i) => this.tone(f, f, 0.26, "sine", 0.08, i * 0.28));
+  },
+  levelClear() {
+    [784, 659, 784, 988, 1175, 988, 1319].forEach((f, i) => this.tone(f, f, 0.13, "triangle", 0.11, i * 0.11));
+  },
+  gameOver() { [523, 466, 392, 330, 262].forEach((f, i) => this.tone(f, f * 0.97, 0.26, "triangle", 0.12, i * 0.2)); },
+};
+
+/* =====================================================================
+   MAZE LOADING: turn a text grid into walls, socks and special spots
+   ===================================================================== */
+const WALLS = "#WBT";
+let maze = null;   // the current level's maze data
+
+function loadMaze(index) {
+  const src = MAZES[index % MAZES.length];
+  const grid = src.grid;
+  const m = {
+    name: src.name, grid, items: [], socks: 0, totalSocks: 0,
+    player: { c: 9, r: 15 }, bonus: { c: 9, r: 12 }, door: null, house: [], tunnelRows: [],
+  };
+  for (let r = 0; r < ROWS; r++) {
+    m.items.push([]);
+    for (let c = 0; c < COLS; c++) {
+      const ch = grid[r][c];
+      m.items[r].push(ch === "." ? 1 : ch === "o" ? 2 : 0);
+      if (ch === ".") m.socks++;
+      if (ch === "P") m.player = { c, r };
+      if (ch === "*") m.bonus = { c, r };
+      if (ch === "-") m.door = { c, r };
+      if (ch === "H") m.house.push({ c, r });
+    }
+    if (!WALLS.includes(grid[r][0]) && !WALLS.includes(grid[r][COLS - 1])) m.tunnelRows.push(r);
+  }
+  m.totalSocks = m.socks;
+  // the lint trap: the row of 'H' cells just inside the door
+  m.houseRow = m.door.r + 1;
+  m.aboveDoor = { c: m.door.c, r: m.door.r - 1 };
+  m.homeSpots = [m.door.c, m.door.c - 2, m.door.c, m.door.c + 2].map(c => ({ c, r: m.houseRow }));
+  m.returnMap = distanceMap(m, m.aboveDoor);
+  m.cache = null;
+  return m;
+}
+// Can a walker stand on this cell? (the lint trap and its door are off limits here)
+function open(m, c, r) {
+  if (r < 0 || r >= ROWS) return false;
+  const ch = m.grid[r][wrapCol(c)];
+  return !(WALLS.includes(ch) || ch === "H" || ch === "-");
+}
+function isTunnel(m, x, r) {
+  if (!m.tunnelRows.includes(r)) return false;
+  const c = wrapCol(Math.round(x));
+  return m.grid[r][c] === " " && (c < 6 || c > COLS - 7);
+}
+// how many steps from every cell to the target (used by bounced bunnies to find home)
+function distanceMap(m, target) {
+  const d = Array.from({ length: ROWS }, () => new Array(COLS).fill(1e9));
+  const q = [[target.c, target.r]]; d[target.r][target.c] = 0;
+  while (q.length) {
+    const [c, r] = q.shift();
+    for (let k = 0; k < 4; k++) {
+      const nc = wrapCol(c + DX[k]), nr = r + DY[k];
+      if (open(m, nc, nr) && d[nr][nc] > d[r][c] + 1) { d[nr][nc] = d[r][c] + 1; q.push([nc, nr]); }
+    }
+  }
+  return d;
+}
+
+/* =====================================================================
+   GAME STATE
+   ===================================================================== */
+let state = "menu";      // menu | ready | playing | dying | cleared | gameover
+let paused = false;
+let stateTime = 0;       // seconds in the current state
+let clock = 0;           // seconds since the page loaded (for animations)
+let score = 0, lives = CONFIG.lives, level = 1, gotExtraLife = false;
+let levelTime = 0;       // seconds of play on this level (Static gets faster with it)
+let modeIndex = 0, modeTime = 0;
+let fluffTimer = 0, combo = 0, freeze = 0;
+let bonus = null;        // { kind, time }
+let bonusSpawned = 0;
+let popups = [];         // floating score numbers
+let particles = [];      // little fluff puffs
+let player, bunnies;
+let playerName = "";
+let highScores = loadScores();
+let lastRank = -1;
+
+const BONUS_KINDS = ["duck", "coin", "cookie"];
+const BUNNY_TYPES = [
+  { name: "Fuzz",   accent: "#ff5a5f", corner: { c: COLS - 2, r: -3 } },   // chases you directly
+  { name: "Lint",   accent: "#2ec4b6", corner: { c: 1, r: -3 } },          // tries to get ahead of you
+  { name: "Clump",  accent: "#ff9f1c", corner: { c: 0, r: ROWS + 2 } },    // wanders randomly
+  { name: "Static", accent: "#ffd23f", corner: { c: COLS - 1, r: ROWS + 2 } }, // speeds up as the level goes on
+];
+
+function loadScores() {
+  const s = store.get("sockGobblerScores", []);
+  return Array.isArray(s) ? s.filter(e => e && typeof e.score === "number").slice(0, CONFIG.maxScores) : [];
+}
+function saveScore(name, sc, lvl) {
+  const entry = { name: (name || "Player").slice(0, 12), score: sc, level: lvl, t: Date.now() };
+  highScores.push(entry);
+  highScores.sort((a, b) => b.score - a.score || a.t - b.t);
+  highScores = highScores.slice(0, CONFIG.maxScores);
+  store.set("sockGobblerScores", highScores);
+  return highScores.indexOf(entry);
+}
+function bestScore() { return Math.max(score, highScores.length ? highScores[0].score : 0); }
+
+function bunnySpeedScale() { return Math.min(CONFIG.bunnySpeedMax, 1 + CONFIG.bunnySpeedPerLevel * (level - 1)); }
+
+// put Gobbles and the bunnies back at their starting spots
+function resetActors() {
+  player = { x: maze.player.c, y: maze.player.r, dir: 1, want: 1, face: 1, moving: false,
+    squish: 0, chomp: 0, eyeX: 0, eyeY: 0, eyeVX: 0, eyeVY: 0, trail: [] };
+  const shrink = Math.max(0.35, 1 - CONFIG.releaseShrinkPerLevel * (level - 1));
+  bunnies = BUNNY_TYPES.map((t, i) => {
+    const home = maze.homeSpots[i];
+    const b = { type: t, i, x: home.c, y: home.r, dir: 1, fluffed: false, state: "house",
+      release: CONFIG.releaseTimes[i] * shrink, wait: 0, seed: Math.random() * 10 };
+    if (i === 0) { b.state = "active"; b.x = maze.aboveDoor.c; b.y = maze.aboveDoor.r; }
+    return b;
+  });
+  fluffTimer = 0; combo = 0; freeze = 0; bonus = null; modeIndex = 0; modeTime = 0;
+  stateTime = 0; popups = [];
+}
+function startGame() {
+  score = 0; lives = CONFIG.lives; level = 1; gotExtraLife = false;
+  startLevel();
+  Sound.jingle();
+}
+function startLevel() {
+  maze = loadMaze(level - 1);
+  levelTime = 0; bonusSpawned = 0;
+  resetActors();
+  setState("ready");
+  resize();
+}
+function setState(s) { state = s; stateTime = 0; document.documentElement.classList.toggle("playing", s !== "menu" && s !== "gameover"); }
+
+function addScore(n) {
+  score += n;
+  if (!gotExtraLife && score >= CONFIG.extraLifeAt) {
+    gotExtraLife = true; lives++; Sound.extraLife();
+    popups.push({ x: player.x, y: player.y - 1, text: "EXTRA LIFE!", t: 0, color: "#ff6b9a" });
+  }
+}
+
+/* =====================================================================
+   MOVEMENT ON THE GRID
+   Walkers sit on tile centres (whole numbers) or slide between them.
+   At each centre they may turn; between centres they can only reverse.
+   ===================================================================== */
+function atCenter(e) { return Math.abs(e.x - Math.round(e.x)) < 1e-6 && Math.abs(e.y - Math.round(e.y)) < 1e-6; }
+
+// Move walker e by dist tiles. onCenter(e) is called at every tile centre it reaches
+// and may change e.dir (or set it to -1 to stop).
+function walk(e, dist, onCenter) {
+  let guard = 0;
+  while (dist > 1e-7 && guard++ < 12) {
+    if (atCenter(e)) {
+      e.x = Math.round(e.x); e.y = Math.round(e.y);
+      onCenter(e);
+      if (e.dir < 0) return;
+    }
+    const horiz = DX[e.dir] !== 0, s = horiz ? DX[e.dir] : DY[e.dir];
+    const p = horiz ? e.x : e.y;
+    const next = s > 0 ? Math.floor(p + 1e-6) + 1 : Math.ceil(p - 1e-6) - 1;
+    const gap = Math.abs(next - p);
+    const step = Math.min(dist, gap);
+    const np = step >= gap - 1e-9 ? next : p + s * step;
+    if (horiz) e.x = np; else e.y = np;
+    dist -= step;
+    // dryer vent: slide off one side, pop out of the other
+    if (e.x < -0.5) e.x += COLS;
+    if (e.x > COLS - 0.5) e.x -= COLS;
+  }
+}
+
+/* ---------- Gobbles ---------- */
+function updatePlayer(dt) {
+  const p = player;
+  // pressing the opposite way works instantly, even between tiles
+  if (p.dir >= 0 && p.want === REV(p.dir)) p.dir = p.want;
+  if (p.dir < 0 && p.want >= 0 && open(maze, Math.round(p.x) + DX[p.want], Math.round(p.y) + DY[p.want])) p.dir = p.want;
+  const before = { x: p.x, y: p.y };
+  walk(p, CONFIG.playerSpeed * dt, e => {
+    eatAt(Math.round(e.x), Math.round(e.y));
+    const c = Math.round(e.x), r = Math.round(e.y);
+    // buffered turn: use the direction pressed earlier as soon as it is open
+    if (e.want >= 0 && open(maze, c + DX[e.want], r + DY[e.want])) e.dir = e.want;
+    if (e.dir >= 0 && !open(maze, c + DX[e.dir], r + DY[e.dir])) { e.face = e.dir; e.dir = -1; }
+  });
+  if (p.dir >= 0) p.face = p.dir;
+  let moved = Math.abs(p.x - before.x) + Math.abs(p.y - before.y);
+  if (moved > 1) moved = CONFIG.playerSpeed * dt;    // went through the vent
+  p.moving = moved > 0;
+  p.squish += moved * 7;                 // body squish follows distance travelled
+  p.chomp += moved * 5.5;
+  // remember where we have been, for the wiggly tail
+  p.trail.unshift({ x: p.x, y: p.y });
+  if (p.trail.length > 40) p.trail.pop();
+  // googly eyes: pupils are on springs and wobble when Gobbles moves
+  const tx = DX[p.face] * 0.5, ty = DY[p.face] * 0.5;
+  p.eyeVX += ((tx - p.eyeX) * 90 - p.eyeVX * 9) * dt;
+  p.eyeVY += ((ty - p.eyeY) * 90 - p.eyeVY * 9) * dt;
+  p.eyeX += p.eyeVX * dt; p.eyeY += p.eyeVY * dt;
+  if (bonus) {
+    if (Math.hypot(p.x - maze.bonus.c, p.y - maze.bonus.r) < 0.7) {
+      const pts = CONFIG.points.bonus[bonus.kind] * (1 + Math.floor((level - 1) / 3));
+      addScore(pts); Sound.bonus();
+      popups.push({ x: maze.bonus.c, y: maze.bonus.r, text: String(pts), t: 0, color: "#ff6b9a" });
+      bonus = null;
+    }
+  }
+}
+
+function eatAt(c, r) {
+  c = wrapCol(c);
+  const it = maze.items[r] && maze.items[r][c];
+  if (!it) return;
+  maze.items[r][c] = 0;
+  if (it === 1) {
+    addScore(CONFIG.points.sock); Sound.sock();
+    maze.socks--;
+    // a bonus item pops out when enough socks are gone
+    const gone = 1 - maze.socks / maze.totalSocks;
+    if (bonusSpawned < CONFIG.bonusAt.length && gone >= CONFIG.bonusAt[bonusSpawned]) {
+      bonus = { kind: BONUS_KINDS[(level - 1 + bonusSpawned) % BONUS_KINDS.length], time: CONFIG.bonusTime };
+      bonusSpawned++;
+    }
+    if (maze.socks <= 0) { setState("cleared"); Sound.levelClear(); }
+  } else if (it === 2) {
+    addScore(CONFIG.points.dryerSheet); Sound.whoosh();
+    fluffTimer = CONFIG.fluffTime; combo = 0;
+    bunnies.forEach(b => {
+      if (b.state === "returning" || b.state === "entering") return;
+      b.fluffed = true;
+      if (b.state === "active") b.dir = REV(b.dir);   // startled: they turn around
+    });
+    for (let i = 0; i < 14; i++) particles.push({ x: c, y: r, vx: rand(-3, 3), vy: rand(-3, 3), t: 0, life: rand(.4, .8), color: "#ffffff" });
+  }
+}
+
+/* ---------- Dust Bunnies ---------- */
+function chasing() { return modeIndex >= CONFIG.modes.length || modeIndex % 2 === 1; }
+
+function bunnyTarget(b) {
+  const p = player, pc = Math.round(p.x), pr = Math.round(p.y);
+  if (!chasing()) return b.type.corner;               // take a break in your corner
+  switch (b.i) {
+    case 0: return { c: pc, r: pr };                   // Fuzz: straight at you
+    case 1: return { c: pc + DX[p.face] * CONFIG.lintLookAhead, r: pr + DY[p.face] * CONFIG.lintLookAhead }; // Lint: cut you off
+    case 3: return { c: pc, r: pr };                   // Static: chases too, but keeps getting faster
+    default: return null;                              // Clump: random
+  }
+}
+
+function chooseBunnyDir(b) {
+  const c = Math.round(b.x), r = Math.round(b.y);
+  if (b.state === "returning") {
+    if (c === maze.aboveDoor.c && r === maze.aboveDoor.r) { b.state = "entering"; b.dir = -1; return; }
+    let best = -1, bd = 1e9;
+    for (let k = 0; k < 4; k++) {
+      const nc = wrapCol(c + DX[k]), nr = r + DY[k];
+      if (open(maze, nc, nr) && maze.returnMap[nr][nc] < bd) { bd = maze.returnMap[nr][nc]; best = k; }
+    }
+    b.dir = best;
+    return;
+  }
+  let opts = [];
+  for (let k = 0; k < 4; k++) if (k !== REV(b.dir) && open(maze, c + DX[k], r + DY[k])) opts.push(k);
+  if (!opts.length) { b.dir = REV(b.dir); return; }
+  if (b.fluffed) {
+    // scared: usually pick the way that is furthest from Gobbles, sometimes just panic
+    if (Math.random() < 0.35) { b.dir = opts[Math.floor(Math.random() * opts.length)]; return; }
+    let best = opts[0], bd = -1;
+    for (const k of opts) {
+      const d = (c + DX[k] - player.x) ** 2 + (r + DY[k] - player.y) ** 2;
+      if (d > bd) { bd = d; best = k; }
+    }
+    b.dir = best; return;
+  }
+  const tgt = bunnyTarget(b);
+  if (!tgt) { b.dir = opts[Math.floor(Math.random() * opts.length)]; return; }
+  let best = opts[0], bd = 1e9;
+  for (const k of opts) {
+    const d = (c + DX[k] - tgt.c) ** 2 + (r + DY[k] - tgt.r) ** 2;
+    if (d < bd) { bd = d; best = k; }
+  }
+  b.dir = best;
+}
+
+function bunnySpeed(b) {
+  if (b.state === "returning") return CONFIG.returnSpeed;
+  let s = CONFIG.bunnySpeed * bunnySpeedScale();
+  if (b.i === 3) s *= 1 + Math.min(CONFIG.staticBoostMax, levelTime * CONFIG.staticBoostPerSec);
+  if (b.fluffed) s *= CONFIG.fluffedSpeed;
+  if (isTunnel(maze, b.x, Math.round(b.y))) s *= CONFIG.tunnelSlow;
+  return s;
+}
+
+// glide straight towards a point (used inside the lint trap); returns true on arrival
+function glide(b, tx, ty, dist) {
+  const dx = tx - b.x, dy = ty - b.y, d = Math.hypot(dx, dy);
+  if (d <= dist) { b.x = tx; b.y = ty; return true; }
+  b.x += dx / d * dist; b.y += dy / d * dist; return false;
+}
+
+function updateBunny(b, dt) {
+  const doorX = maze.door.c, inY = maze.houseRow, outY = maze.aboveDoor.r;
+  switch (b.state) {
+    case "house":
+      if (stateTime >= b.release) b.state = "leaving";
+      break;
+    case "leaving": {
+      const sp = CONFIG.houseSpeed * dt;
+      if (Math.abs(b.x - doorX) > 1e-6) glide(b, doorX, inY, sp);
+      else if (glide(b, doorX, outY, sp)) { b.state = "active"; b.dir = Math.random() < 0.5 ? 1 : 3; }
+      break;
+    }
+    case "entering":
+      if (glide(b, doorX, inY, CONFIG.houseSpeed * 2 * dt)) {
+        b.wait += dt;
+        if (b.wait > 0.5) { b.wait = 0; b.fluffed = false; b.state = "leaving"; }
+      }
+      break;
+    default:   // active or returning: walk the maze
+      if (b.dir < 0) b.dir = 1;
+      walk(b, bunnySpeed(b) * dt, chooseBunnyDir);
+      if (b.state === "entering") { b.x = doorX; b.y = outY; }
+  }
+}
+
+/* ---------- one step of the game ---------- */
+function update(dt) {
+  stateTime += dt; clock += dt;
+  updateEffects(dt);
+  if (state === "ready") { if (stateTime >= CONFIG.readyTime) setState("playing"); return; }
+  if (state === "dying") {
+    if (stateTime >= CONFIG.dieTime) {
+      lives--;
+      if (lives <= 0) endGame();
+      else { resetActors(); setState("ready"); }
+    }
+    return;
+  }
+  if (state === "cleared") {
+    if (stateTime >= CONFIG.clearTime) { level++; startLevel(); }
+    return;
+  }
+  if (state !== "playing") return;
+  if (freeze > 0) { freeze -= dt; return; }
+
+  levelTime += dt;
+  // scatter / chase timetable (it waits while the bunnies are fluffed)
+  if (fluffTimer > 0) {
+    fluffTimer -= dt;
+    if (fluffTimer <= 0) { fluffTimer = 0; bunnies.forEach(b => { b.fluffed = false; }); }
+  } else if (modeIndex < CONFIG.modes.length) {
+    modeTime += dt;
+    if (modeTime >= CONFIG.modes[modeIndex]) {
+      modeTime = 0; modeIndex++;
+      bunnies.forEach(b => { if (b.state === "active") b.dir = REV(b.dir); });
+    }
+  }
+  if (bonus && (bonus.time -= dt) <= 0) bonus = null;
+
+  // small sub-steps so nobody can skip past anybody
+  const steps = Math.ceil(dt / (1 / 120));
+  for (let s = 0; s < steps && state === "playing" && freeze <= 0; s++) {
+    const h = dt / steps;
+    updatePlayer(h);
+    if (state !== "playing") break;
+    for (const b of bunnies) updateBunny(b, h);
+    checkCatches();
+  }
+}
+
+function checkCatches() {
+  for (const b of bunnies) {
+    if (b.state !== "active") continue;
+    let dx = Math.abs(b.x - player.x); if (dx > COLS / 2) dx = COLS - dx;
+    if (Math.hypot(dx, b.y - player.y) > CONFIG.catchDistance) continue;
+    if (b.fluffed) {
+      // boing! the bunny bounces back to the lint trap
+      const pts = CONFIG.points.bunnies[Math.min(combo, CONFIG.points.bunnies.length - 1)];
+      addScore(pts); Sound.pop(combo); combo++;
+      popups.push({ x: b.x, y: b.y, text: String(pts), t: 0, color: "#2ec4b6" });
+      for (let i = 0; i < 12; i++) particles.push({ x: b.x, y: b.y, vx: rand(-4, 4), vy: rand(-4, 4), t: 0, life: rand(.3, .7), color: "#e8e6ef" });
+      b.fluffed = false; b.state = "returning";
+      freeze = CONFIG.bounceFreeze;
+    } else {
+      setState("dying"); Sound.boing();
+      return;
+    }
+  }
+}
+
+function updateEffects(dt) {
+  popups.forEach(p => p.t += dt);
+  popups = popups.filter(p => p.t < 1.1);
+  particles.forEach(p => { p.t += dt; p.x += p.vx * dt; p.y += p.vy * dt; p.vx *= 0.92; p.vy *= 0.92; });
+  particles = particles.filter(p => p.t < p.life);
+}
+
+function endGame() {
+  setState("gameover");
+  Sound.gameOver();
+  lastRank = -1;
+  const qualifies = score > 0 && (highScores.length < CONFIG.maxScores || score > highScores[highScores.length - 1].score);
+  if (qualifies) lastRank = saveScore(playerName, score, level);
+  $("overScore").textContent = score.toLocaleString() + " points · level " + level;
+  $("overNote").textContent = lastRank === 0 ? "🎉 New top score!" : lastRank > 0 ? "You made the high scores at #" + (lastRank + 1) + "!" : "";
+  renderScores($("overScores"), lastRank);
+  setTimeout(() => { if (state === "gameover") { $("over").hidden = false; $("againBtn").focus(); } }, 900);
+}
+
+/* =====================================================================
+   DRAWING: everything is made from canvas shapes, no images
+   ===================================================================== */
+const view = { scale: 1, dpr: 1 };
+const hash = (c, r, s = 0) => { const v = Math.sin(c * 127.1 + r * 311.7 + s * 74.7) * 43758.5453; return v - Math.floor(v); };
+function rr(g, x, y, w, h, r) {   // rounded rectangle path
+  r = Math.min(r, w / 2, h / 2);
+  g.beginPath(); g.moveTo(x + r, y); g.arcTo(x + w, y, x + w, y + h, r); g.arcTo(x + w, y + h, x, y + h, r);
+  g.arcTo(x, y + h, x, y, r); g.arcTo(x, y, x + w, y, r); g.closePath();
+}
+
+// Group wall tiles into blocks so each block can be drawn as one piece of furniture.
+function wallBlocks(m) {
+  const seen = Array.from({ length: ROWS }, () => new Array(COLS).fill(false));
+  const lint = trapBox(m);
+  const inTrap = (c, r) => c >= lint.c0 && c <= lint.c1 && r >= lint.r0 && r <= lint.r1;
+  const blocks = [];
+  for (let r = 0; r < ROWS; r++) for (let c = 0; c < COLS; c++) {
+    const ch = m.grid[r][c];
+    if (seen[r][c] || !WALLS.includes(ch) || inTrap(c, r)) continue;
+    const cells = [], q = [[c, r]]; seen[r][c] = true;
+    let edge = false;
+    while (q.length) {
+      const [x, y] = q.pop(); cells.push([x, y]);
+      if (x === 0 || y === 0 || x === COLS - 1 || y === ROWS - 1) edge = true;
+      for (let k = 0; k < 4; k++) {
+        const nx = x + DX[k], ny = y + DY[k];
+        if (nx < 0 || ny < 0 || nx >= COLS || ny >= ROWS || seen[ny][nx] || m.grid[ny][nx] !== ch || inTrap(nx, ny)) continue;
+        seen[ny][nx] = true; q.push([nx, ny]);
+      }
+    }
+    const xs = cells.map(a => a[0]), ys = cells.map(a => a[1]);
+    const b = { ch, cells, edge, c0: Math.min(...xs), c1: Math.max(...xs), r0: Math.min(...ys), r1: Math.max(...ys) };
+    b.w = b.c1 - b.c0 + 1; b.h = b.r1 - b.r0 + 1; b.rect = cells.length === b.w * b.h;
+    // plain '#' blocks inside the room become furniture, chosen by shape
+    if (ch === "#") {
+      if (edge) b.kind = "room";
+      else if (b.rect && Math.min(b.w, b.h) >= 2) b.kind = "washer";
+      else if (b.rect && Math.max(b.w, b.h) >= 3) b.kind = "towels";
+      else b.kind = "basket";
+    } else b.kind = { W: "washer", B: "basket", T: "towels" }[ch];
+    blocks.push(b);
+  }
+  return blocks;
+}
+function trapBox(m) {
+  const cs = m.house.map(h => h.c), rs = m.house.map(h => h.r).concat([m.door.r]);
+  return { c0: Math.min(...cs) - 1, c1: Math.max(...cs) + 1, r0: Math.min(...rs), r1: Math.max(...rs) + 1 };
+}
+
+// Draw the floor and furniture once into an off-screen picture (redrawn on resize / new level)
+function buildMazeCache() {
+  const k = view.scale * view.dpr;
+  const can = document.createElement("canvas");
+  can.width = Math.max(1, Math.round(W * k)); can.height = Math.max(1, Math.round(MAZE_H * k));
+  const g = can.getContext("2d");
+  g.setTransform(k, 0, 0, k, 0, 0);
+  const C = CONFIG.colors;
+  // cosy checkered lino floor
+  for (let r = 0; r < ROWS; r++) for (let c = 0; c < COLS; c++) {
+    g.fillStyle = (r + c) % 2 ? C.floorA : C.floorB;
+    g.fillRect(c * T, r * T, T, T);
+  }
+  g.strokeStyle = C.grout; g.lineWidth = 1;
+  for (let c = 1; c < COLS; c++) { g.beginPath(); g.moveTo(c * T, 0); g.lineTo(c * T, MAZE_H); g.stroke(); }
+  for (let r = 1; r < ROWS; r++) { g.beginPath(); g.moveTo(0, r * T); g.lineTo(W, r * T); g.stroke(); }
+
+  for (const b of wallBlocks(maze)) {
+    // soft drop shadow under every piece of furniture
+    g.fillStyle = "rgba(90,50,20,.18)";
+    for (const [c, r] of b.cells) rr(g, c * T + 2, r * T + 4, T, T, 6), g.fill();
+    if (b.kind === "room") drawRoomWall(g, b);
+    else if (b.kind === "washer" && b.rect) drawWashers(g, b);
+    else if (b.kind === "towels" && b.rect) drawTowels(g, b);
+    else drawBasket(g, b);
+  }
+  drawLintTrap(g, maze);
+  // dryer vents at the tunnel ends
+  for (const r of maze.tunnelRows) { drawVent(g, 0, r, 1); drawVent(g, W, r, -1); }
+  maze.cache = can; maze.cacheK = k;
+}
+
+function drawRoomWall(g, b) {
+  const C = CONFIG.colors, set = new Set(b.cells.map(a => a[0] + "," + a[1]));
+  const has = (c, r) => set.has(c + "," + r);
+  for (const [c, r] of b.cells) {
+    const x = c * T, y = r * T;
+    g.fillStyle = C.roomWall; g.fillRect(x, y, T, T);
+    // light top edge where the wall meets the floor above it
+    if (!has(c, r - 1) && r > 0) { g.fillStyle = C.roomWallTop; g.fillRect(x, y, T, 5); }
+  }
+  // outline only the edges that face the floor
+  g.strokeStyle = C.roomWallEdge; g.lineWidth = 2.5; g.lineCap = "round";
+  g.beginPath();
+  for (const [c, r] of b.cells) {
+    const x = c * T, y = r * T;
+    if (r > 0 && !has(c, r - 1)) { g.moveTo(x, y + 1); g.lineTo(x + T, y + 1); }
+    if (r < ROWS - 1 && !has(c, r + 1)) { g.moveTo(x, y + T - 1); g.lineTo(x + T, y + T - 1); }
+    if (c > 0 && !has(c - 1, r)) { g.moveTo(x + 1, y); g.lineTo(x + 1, y + T); }
+    if (c < COLS - 1 && !has(c + 1, r)) { g.moveTo(x + T - 1, y); g.lineTo(x + T - 1, y + T); }
+  }
+  g.stroke();
+  // little cabinet knobs here and there
+  g.fillStyle = "#f7e3a1";
+  for (const [c, r] of b.cells) if (hash(c, r, 3) < 0.18) { g.beginPath(); g.arc(c * T + T / 2, r * T + T / 2, 2.2, 0, 7); g.fill(); }
+}
+
+function drawWashers(g, b) {
+  // tile the block with square washing machines
+  const horiz = b.w >= b.h, size = Math.min(b.w, b.h), n = Math.max(1, Math.round(Math.max(b.w, b.h) / size));
+  const len = (horiz ? b.w : b.h) / n;
+  for (let i = 0; i < n; i++) {
+    const x = (b.c0 + (horiz ? i * len : 0)) * T + 2, y = (b.r0 + (horiz ? 0 : i * len)) * T + 2;
+    const w = (horiz ? len : b.w) * T - 4, h = (horiz ? b.h : len) * T - 4;
+    rr(g, x, y, w, h, 7); g.fillStyle = "#f4f7fb"; g.fill();
+    g.lineWidth = 2.5; g.strokeStyle = "#56688c"; g.stroke();
+    // control panel
+    rr(g, x + 3, y + 3, w - 6, h * 0.2, 4); g.fillStyle = "#dfe8f4"; g.fill();
+    g.fillStyle = "#ff8fb1"; g.beginPath(); g.arc(x + 9, y + 3 + h * 0.1, 2.6, 0, 7); g.fill();
+    g.fillStyle = "#6fd0ff"; g.beginPath(); g.arc(x + 17, y + 3 + h * 0.1, 2.6, 0, 7); g.fill();
+    g.fillStyle = "#56688c"; g.fillRect(x + w - 16, y + 2 + h * 0.07, 10, 3);
+    // round door with a sock tumbling inside
+    const cx = x + w / 2, cy = y + h * 0.6, R = Math.min(w, h * 0.75) * 0.36;
+    g.beginPath(); g.arc(cx, cy, R + 3, 0, 7); g.fillStyle = "#b8c4d6"; g.fill();
+    g.beginPath(); g.arc(cx, cy, R, 0, 7); g.fillStyle = "#8fd3ff"; g.fill();
+    g.save(); g.beginPath(); g.arc(cx, cy, R, 0, 7); g.clip();
+    g.fillStyle = "#6bbcf0"; g.fillRect(cx - R, cy + R * 0.25, R * 2, R);
+    drawSockShape(g, cx - R * 0.1, cy + R * 0.1, R * 0.5, hash(b.c0, b.r0, i) * 6, "#ff6b9a");
+    g.restore();
+    g.beginPath(); g.arc(cx - R * 0.3, cy - R * 0.3, R * 0.35, Math.PI, Math.PI * 1.6); g.strokeStyle = "rgba(255,255,255,.85)"; g.lineWidth = 2.5; g.stroke();
+  }
+}
+
+function drawTowels(g, b) {
+  // a stack of folded towels in happy colours
+  const cols = ["#ff9ec4", "#8ee3c8", "#ffd56b", "#9cc7ff", "#c7a6ff"];
+  const horiz = b.w >= b.h, n = horiz ? b.w : b.h;
+  for (let i = 0; i < n; i++) {
+    const x = (b.c0 + (horiz ? i : 0)) * T + 1.5, y = (b.r0 + (horiz ? 0 : i)) * T + 1.5;
+    const w = (horiz ? 1 : b.w) * T - 3, h = (horiz ? b.h : 1) * T - 3;
+    const col = cols[Math.floor(hash(b.c0 + i, b.r0, 5) * cols.length)];
+    rr(g, x, y, w, h, 6); g.fillStyle = col; g.fill();
+    g.strokeStyle = "rgba(60,30,80,.45)"; g.lineWidth = 2; g.stroke();
+    // folded edge and a woven stripe
+    g.fillStyle = "rgba(255,255,255,.45)";
+    if (horiz) g.fillRect(x + 3, y + 3, w - 6, 3); else g.fillRect(x + 3, y + 3, 3, h - 6);
+    g.fillStyle = "rgba(60,30,80,.18)";
+    if (horiz) g.fillRect(x + w * 0.62, y + 3, 3, h - 6); else g.fillRect(x + 3, y + h * 0.62, w - 6, 3);
+  }
+}
+
+function drawBasket(g, b) {
+  const set = new Set(b.cells.map(a => a[0] + "," + a[1]));
+  const has = (c, r) => set.has(c + "," + r);
+  g.save();
+  g.beginPath();
+  for (const [c, r] of b.cells) {
+    const l = has(c - 1, r) ? 0 : 2, rt = has(c + 1, r) ? 0 : 2, t = has(c, r - 1) ? 0 : 2, bt = has(c, r + 1) ? 0 : 2;
+    g.rect(c * T + l, r * T + t, T - l - rt, T - t - bt);
+  }
+  g.fillStyle = "#d9a15a"; g.fill();
+  g.clip();
+  // wicker weave
+  g.strokeStyle = "rgba(120,70,20,.4)"; g.lineWidth = 1.5;
+  for (const [c, r] of b.cells) {
+    const x = c * T, y = r * T;
+    for (let i = 0; i < 3; i++) for (let j = 0; j < 3; j++) {
+      const px = x + i * 8 + 4, py = y + j * 8 + 4;
+      g.beginPath();
+      if ((i + j) % 2) { g.moveTo(px - 3, py); g.lineTo(px + 3, py); } else { g.moveTo(px, py - 3); g.lineTo(px, py + 3); }
+      g.stroke();
+    }
+  }
+  g.restore();
+  // rim
+  g.strokeStyle = "#8a5520"; g.lineWidth = 2.5; g.beginPath();
+  for (const [c, r] of b.cells) {
+    const x = c * T, y = r * T;
+    if (!has(c, r - 1)) { g.moveTo(x + 2, y + 2); g.lineTo(x + T - 2, y + 2); }
+    if (!has(c, r + 1)) { g.moveTo(x + 2, y + T - 2); g.lineTo(x + T - 2, y + T - 2); }
+    if (!has(c - 1, r)) { g.moveTo(x + 2, y + 2); g.lineTo(x + 2, y + T - 2); }
+    if (!has(c + 1, r)) { g.moveTo(x + T - 2, y + 2); g.lineTo(x + T - 2, y + T - 2); }
+  }
+  g.stroke();
+  // a shirt sleeve or sock peeking out of the basket
+  const [pc, pr] = b.cells[Math.floor(hash(b.c0, b.r0, 9) * b.cells.length)];
+  const cl = ["#6fd0ff", "#ff8fb1", "#8ee3c8", "#ffd56b"][Math.floor(hash(pc, pr, 2) * 4)];
+  g.fillStyle = cl; g.beginPath(); g.ellipse(pc * T + T / 2, pr * T + T / 2, T * 0.3, T * 0.2, hash(pc, pr) * 3, 0, 7); g.fill();
+  g.strokeStyle = "rgba(0,0,0,.2)"; g.lineWidth = 1.5; g.stroke();
+}
+
+function drawLintTrap(g, m) {
+  const b = trapBox(m);
+  const x = b.c0 * T + 1, y = b.r0 * T + 1, w = (b.c1 - b.c0 + 1) * T - 2, h = (b.r1 - b.r0 + 1) * T - 2;
+  rr(g, x, y, w, h, 8); g.fillStyle = "#8d93a6"; g.fill();
+  g.strokeStyle = "#555b70"; g.lineWidth = 2.5; g.stroke();
+  // mesh screen
+  const ix = x + T * 0.75, iy = y + T * 0.75, iw = w - T * 1.5, ih = h - T * 1.5;
+  rr(g, ix, iy, iw, ih, 5); g.fillStyle = "#d9dce6"; g.fill();
+  g.save(); rr(g, ix, iy, iw, ih, 5); g.clip();
+  g.strokeStyle = "rgba(90,95,120,.35)"; g.lineWidth = 1;
+  for (let i = -ih; i < iw; i += 4) { g.beginPath(); g.moveTo(ix + i, iy); g.lineTo(ix + i + ih, iy + ih); g.stroke(); g.beginPath(); g.moveTo(ix + i + ih, iy); g.lineTo(ix + i, iy + ih); g.stroke(); }
+  g.restore();
+  // fuzzy door flap
+  const dx = m.door.c * T, dy = m.door.r * T;
+  g.fillStyle = "#d9dce6"; g.fillRect(dx - 2, dy, T + 4, T);
+  g.fillStyle = "#ffb3d1"; rr(g, dx - 2, dy + T * 0.38, T + 4, T * 0.26, 3); g.fill();
+  g.fillStyle = "rgba(255,255,255,.9)"; g.font = "bold 7px system-ui, sans-serif"; g.textAlign = "center"; g.textBaseline = "middle";
+  g.fillText("LINT TRAP", x + w / 2, y + h - T * 0.38);
+}
+
+function drawVent(g, x, r, side) {
+  // a round silver dryer vent poking in from the edge of the room
+  const cy = r * T + T / 2;
+  g.save();
+  for (let i = 0; i < 4; i++) {
+    g.beginPath(); g.ellipse(x + side * (i * 4), cy, 6, T * 0.62, 0, 0, 7);
+    g.fillStyle = i % 2 ? "#c6ccd8" : "#e6eaf2"; g.fill();
+    g.strokeStyle = "#7d8599"; g.lineWidth = 1.5; g.stroke();
+  }
+  g.restore();
+}
+
+/* ---------- small things on the floor ---------- */
+const SOCK_COLORS = ["#ff6b9a", "#4fc3f7", "#7ed957", "#ffb02e", "#b388ff", "#ff7a59"];
+function drawSockShape(g, x, y, s, ang, col) {
+  g.save(); g.translate(x, y); g.rotate(ang);
+  g.fillStyle = col; g.strokeStyle = "rgba(60,30,80,.55)"; g.lineWidth = Math.max(1, s * 0.18);
+  g.beginPath();
+  g.moveTo(-s * 0.35, -s); g.lineTo(s * 0.25, -s); g.lineTo(s * 0.25, s * 0.2);
+  g.quadraticCurveTo(s * 0.25, s * 0.55, s * 0.75, s * 0.55);
+  g.quadraticCurveTo(s * 1.05, s * 0.75, s * 0.75, s);
+  g.lineTo(-s * 0.1, s); g.quadraticCurveTo(-s * 0.4, s, -s * 0.35, s * 0.6);
+  g.closePath(); g.fill(); g.stroke();
+  g.fillStyle = "rgba(255,255,255,.85)"; g.fillRect(-s * 0.35, -s * 0.75, s * 0.6, s * 0.22);   // stripe
+  g.restore();
+}
+function drawItems() {
+  for (let r = 0; r < ROWS; r++) for (let c = 0; c < COLS; c++) {
+    const it = maze.items[r][c]; if (!it) continue;
+    const x = c * T + T / 2, y = r * T + T / 2;
+    if (it === 1) drawSockShape(ctx, x - 1, y, T * 0.2, (hash(c, r) - 0.5) * 1.6, SOCK_COLORS[Math.floor(hash(r, c, 1) * SOCK_COLORS.length)]);
+    else drawDryerSheet(x, y, clock);
+  }
+}
+function drawDryerSheet(x, y, t) {
+  const s = T * (0.32 + Math.sin(t * 6) * 0.04);
+  ctx.save(); ctx.translate(x, y); ctx.rotate(Math.sin(t * 2.5) * 0.25);
+  ctx.shadowColor = "rgba(120,200,255,.8)"; ctx.shadowBlur = 8;
+  ctx.beginPath();
+  ctx.moveTo(-s, -s); ctx.quadraticCurveTo(0, -s * 1.25, s, -s); ctx.quadraticCurveTo(s * 1.2, 0, s, s);
+  ctx.quadraticCurveTo(0, s * 0.8, -s, s); ctx.quadraticCurveTo(-s * 0.8, 0, -s, -s);
+  ctx.fillStyle = "#ffffff"; ctx.fill(); ctx.shadowBlur = 0;
+  ctx.strokeStyle = "#8fc9f2"; ctx.lineWidth = 1.5; ctx.stroke();
+  ctx.strokeStyle = "rgba(120,180,230,.6)"; ctx.lineWidth = 1;
+  for (let i = -1; i <= 1; i++) { ctx.beginPath(); ctx.moveTo(-s * 0.6, i * s * 0.45); ctx.quadraticCurveTo(0, i * s * 0.45 - 2, s * 0.6, i * s * 0.45); ctx.stroke(); }
+  ctx.restore();
+  // twinkle
+  const tw = (Math.sin(t * 4 + x) + 1) / 2;
+  ctx.fillStyle = `rgba(255,240,150,${tw})`;
+  star(x + s, y - s, 2 + tw * 2);
+}
+function star(x, y, r) {
+  ctx.beginPath();
+  for (let i = 0; i < 8; i++) { const a = i * Math.PI / 4, d = i % 2 ? r * 0.35 : r; ctx.lineTo(x + Math.cos(a) * d, y + Math.sin(a) * d); }
+  ctx.closePath(); ctx.fill();
+}
+
+function drawBonus(kind, x, y, s) {
+  ctx.save(); ctx.translate(x, y);
+  ctx.lineWidth = 1.6; ctx.strokeStyle = "rgba(60,30,80,.6)";
+  if (kind === "duck") {
+    ctx.fillStyle = "#ffd23f";
+    ctx.beginPath(); ctx.ellipse(0, s * 0.25, s * 0.8, s * 0.5, 0, 0, 7); ctx.fill(); ctx.stroke();
+    ctx.beginPath(); ctx.arc(s * 0.3, -s * 0.35, s * 0.42, 0, 7); ctx.fill(); ctx.stroke();
+    ctx.fillStyle = "#ff8c1a"; ctx.beginPath(); ctx.ellipse(s * 0.8, -s * 0.28, s * 0.25, s * 0.12, 0, 0, 7); ctx.fill();
+    ctx.fillStyle = "#2a1f3d"; ctx.beginPath(); ctx.arc(s * 0.42, -s * 0.45, s * 0.08, 0, 7); ctx.fill();
+    ctx.fillStyle = "#ffb800"; ctx.beginPath(); ctx.ellipse(-s * 0.2, s * 0.2, s * 0.35, s * 0.2, -0.4, 0, 7); ctx.fill();
+  } else if (kind === "coin") {
+    ctx.fillStyle = "#ffc93c"; ctx.beginPath(); ctx.arc(0, 0, s * 0.8, 0, 7); ctx.fill(); ctx.stroke();
+    ctx.beginPath(); ctx.arc(0, 0, s * 0.6, 0, 7); ctx.strokeStyle = "#d99a00"; ctx.stroke();
+    ctx.fillStyle = "#3fae4f";   // a little four-leaf clover
+    for (let i = 0; i < 4; i++) { const a = i * Math.PI / 2 + Math.PI / 4; ctx.beginPath(); ctx.arc(Math.cos(a) * s * 0.18, Math.sin(a) * s * 0.18, s * 0.16, 0, 7); ctx.fill(); }
+  } else {
+    ctx.fillStyle = "#d9a05b"; ctx.beginPath(); ctx.arc(0, 0, s * 0.8, 0, 7); ctx.fill(); ctx.stroke();
+    ctx.fillStyle = "#5a3418";
+    [[-.3, -.3], [.3, -.1], [-.1, .35], [.35, .4], [-.45, .15]].forEach(([a, b]) => { ctx.beginPath(); ctx.arc(a * s, b * s, s * 0.11, 0, 7); ctx.fill(); });
+  }
+  ctx.restore();
+}
+
+/* ---------- Gobbles the sock monster ---------- */
+function drawGobbles(p, x, y, size, opts = {}) {
+  const C = CONFIG.colors, R = size * 0.42;
+  const face = p.face, ang = [-Math.PI / 2, Math.PI, Math.PI / 2, 0][face];
+  // long striped tail: follows the path Gobbles walked
+  if (p.trail && p.trail.length > 2 && !opts.icon) {
+    const pts = [];
+    for (let i = 0; i < 22; i += 1) {
+      const a = p.trail[Math.min(i, p.trail.length - 1)];
+      let ax = a.x * T + T / 2, ay = a.y * T + T / 2;
+      if (Math.abs(ax - x) > W / 2) ax += ax > x ? -W : W;   // tail through the vent
+      pts.push([ax, ay]);
+    }
+    // fall back to trailing straight behind when standing still
+    const bx = -DX[face], by = -DY[face];
+    for (let i = 0; i < 9; i++) {
+      const tIdx = Math.min(pts.length - 1, Math.round(i * 2.4));
+      let [tx, ty] = pts[tIdx];
+      const baseX = x + bx * (R * 0.7 + i * size * 0.11), baseY = y + by * (R * 0.7 + i * size * 0.11);
+      const mix = Math.hypot(tx - x, ty - y) < R * 0.7 + i * size * 0.11 ? 1 : 0.35;
+      tx = tx * (1 - mix) + baseX * mix; ty = ty * (1 - mix) + baseY * mix;
+      const wig = Math.sin(clock * 9 - i * 0.8) * i * 0.35;
+      tx += -by * wig; ty += bx * wig;
+      ctx.beginPath(); ctx.arc(tx, ty, R * (0.4 - i * 0.03), 0, 7);
+      ctx.fillStyle = i % 2 ? C.gobblesLight : "#ffd35c"; ctx.fill();
+      ctx.strokeStyle = "rgba(70,20,120,.35)"; ctx.lineWidth = 1; ctx.stroke();
+    }
+  }
+  ctx.save(); ctx.translate(x, y);
+  if (opts.spin) ctx.rotate(opts.spin);
+  // squish and stretch as he scoots along
+  const sq = opts.icon ? 0 : Math.sin(p.squish) * 0.09;
+  const along = 1 + sq, across = 1 - sq;
+  const horiz = DX[face] !== 0;
+  ctx.scale(horiz ? along : across, horiz ? across : along);
+  if (opts.shrink) ctx.scale(opts.shrink, opts.shrink);
+  // fuzzy body: a circle with a ring of fluff tufts
+  ctx.fillStyle = C.gobblesDark;
+  for (let i = 0; i < 16; i++) {
+    const a = i / 16 * Math.PI * 2, j = 1 + Math.sin(i * 7.3 + clock * 5) * 0.06;
+    ctx.beginPath(); ctx.arc(Math.cos(a) * R * 0.9 * j, Math.sin(a) * R * 0.9 * j, R * 0.24, 0, 7); ctx.fill();
+  }
+  ctx.beginPath(); ctx.arc(0, 0, R, 0, 7); ctx.fillStyle = C.gobbles; ctx.fill();
+  ctx.fillStyle = "rgba(255,255,255,.18)";
+  ctx.beginPath(); ctx.ellipse(-R * 0.3, -R * 0.4, R * 0.45, R * 0.28, -0.5, 0, 7); ctx.fill();
+  // chomping mouth facing where he is going
+  const open = opts.icon ? 0.5 : (p.moving ? (Math.sin(p.chomp) + 1) / 2 : 0.25) * 0.75 + 0.1;
+  ctx.save(); ctx.rotate(ang);
+  ctx.beginPath(); ctx.moveTo(R * 0.05, 0); ctx.arc(0, 0, R * 1.02, -open, open); ctx.closePath();
+  ctx.fillStyle = "#3a1046"; ctx.fill();
+  ctx.beginPath(); ctx.arc(R * 0.62, 0, R * 0.22 * open + 1, 0, 7); ctx.fillStyle = "#ff7aa8"; ctx.fill();
+  ctx.restore();
+  // big googly eyes on top
+  const ex = DX[face] * R * 0.12, ey = -R * 0.42;
+  for (const s of [-1, 1]) {
+    const cx = ex + s * R * 0.42 - (horiz ? DX[face] * R * 0.15 : 0), cy = ey + (face === 2 ? R * 0.05 : 0);
+    ctx.beginPath(); ctx.arc(cx, cy, R * 0.36, 0, 7); ctx.fillStyle = "#fff"; ctx.fill();
+    ctx.strokeStyle = "#3a1046"; ctx.lineWidth = 1.5; ctx.stroke();
+    const px = clamp(p.eyeX || DX[face] * 0.5, -0.6, 0.6), py = clamp(p.eyeY || DY[face] * 0.5, -0.6, 0.6);
+    ctx.beginPath(); ctx.arc(cx + px * R * 0.28, cy + py * R * 0.28, R * 0.16, 0, 7); ctx.fillStyle = "#1c0d29"; ctx.fill();
+    ctx.beginPath(); ctx.arc(cx + px * R * 0.28 - R * 0.05, cy + py * R * 0.28 - R * 0.06, R * 0.05, 0, 7); ctx.fillStyle = "#fff"; ctx.fill();
+  }
+  ctx.restore();
+}
+
+/* ---------- Dust Bunnies ---------- */
+function drawBunny(b) {
+  const C = CONFIG.colors;
+  const x = b.x * T + T / 2, y = b.y * T + T / 2 + (b.state === "house" ? Math.sin(clock * 6 + b.i) * 2.5 : 0);
+  const returning = b.state === "returning" || b.state === "entering";
+  const R = T * (returning ? 0.24 : 0.43);
+  const flashing = b.fluffed && fluffTimer < CONFIG.fluffWarn && Math.floor(clock * 8) % 2 === 0;
+  const body = b.fluffed ? (flashing ? C.fluffedFlash : C.fluffed) : C.bunny;
+  ctx.save(); ctx.translate(x, y);
+  if (returning) ctx.rotate(clock * 14);
+  // wobbly fluff: a lumpy outline that keeps jiggling
+  const lumps = 11;
+  ctx.beginPath();
+  for (let i = 0; i <= lumps * 2; i++) {
+    const a = i / (lumps * 2) * Math.PI * 2;
+    const wob = 1 + (i % 2 ? 0.16 : -0.02) + Math.sin(clock * 7 + i * 1.7 + b.seed) * 0.07;
+    ctx.lineTo(Math.cos(a) * R * wob, Math.sin(a) * R * wob * 0.95);
+  }
+  ctx.closePath();
+  ctx.fillStyle = body; ctx.fill();
+  ctx.strokeStyle = b.fluffed ? "#9bb7d4" : C.bunnyDark; ctx.lineWidth = 1.6; ctx.stroke();
+  // a few loose wisps
+  ctx.strokeStyle = b.fluffed ? "rgba(150,180,210,.8)" : "rgba(80,76,92,.6)"; ctx.lineWidth = 1;
+  for (let i = 0; i < 4; i++) {
+    const a = b.seed + i * 1.6 + Math.sin(clock * 3 + i) * 0.2;
+    ctx.beginPath(); ctx.moveTo(Math.cos(a) * R * 0.95, Math.sin(a) * R * 0.95);
+    ctx.quadraticCurveTo(Math.cos(a + .3) * R * 1.35, Math.sin(a + .3) * R * 1.35, Math.cos(a + .1) * R * 1.45, Math.sin(a + .1) * R * 1.45); ctx.stroke();
+  }
+  if (!returning && !b.fluffed) {
+    // coloured tuft on top so you can tell them apart
+    ctx.fillStyle = b.type.accent;
+    for (const s of [-1, 0, 1]) { ctx.beginPath(); ctx.ellipse(s * R * 0.22, -R * 0.95, R * 0.14, R * 0.3, s * 0.5, 0, 7); ctx.fill(); }
+    if (b.i === 3) {   // Static crackles
+      ctx.strokeStyle = b.type.accent; ctx.lineWidth = 1.6;
+      const a = clock * 9;
+      for (let k = 0; k < 2; k++) {
+        const aa = a + k * Math.PI;
+        const sx = Math.cos(aa) * R * 1.2, sy = Math.sin(aa) * R * 1.2;
+        ctx.beginPath(); ctx.moveTo(sx, sy); ctx.lineTo(sx + 3, sy + 2); ctx.lineTo(sx - 1, sy + 4); ctx.lineTo(sx + 3, sy + 7); ctx.stroke();
+      }
+    }
+  }
+  // eyes
+  const look = b.dir >= 0 ? b.dir : 2;
+  const lx = DX[look] * R * 0.12, ly = DY[look] * R * 0.12;
+  for (const s of [-1, 1]) {
+    const cx = s * R * 0.32 + lx, cy = -R * 0.12 + ly;
+    ctx.beginPath(); ctx.ellipse(cx, cy, R * 0.2, R * 0.24, 0, 0, 7); ctx.fillStyle = "#fff"; ctx.fill();
+    ctx.beginPath(); ctx.arc(cx + DX[look] * R * 0.07, cy + DY[look] * R * 0.08, R * (b.fluffed ? 0.07 : 0.11), 0, 7); ctx.fillStyle = "#1e1a2a"; ctx.fill();
+    if (!b.fluffed && !returning) {
+      // grumpy eyebrows
+      ctx.strokeStyle = "#2b2733"; ctx.lineWidth = 2.2; ctx.lineCap = "round";
+      ctx.beginPath(); ctx.moveTo(cx - s * R * 0.22, cy - R * 0.34); ctx.lineTo(cx + s * R * 0.16, cy - R * 0.18); ctx.stroke();
+    }
+  }
+  if (b.fluffed) {
+    // worried wobbly mouth
+    ctx.strokeStyle = "#5c79a0"; ctx.lineWidth = 1.5; ctx.beginPath();
+    for (let i = 0; i <= 6; i++) ctx.lineTo(-R * 0.35 + i * R * 0.117, R * 0.35 + (i % 2 ? -2 : 1.5));
+    ctx.stroke();
+  } else if (!returning) {
+    ctx.strokeStyle = "#2b2733"; ctx.lineWidth = 1.6; ctx.beginPath(); ctx.arc(0, R * 0.48, R * 0.18, Math.PI * 1.15, Math.PI * 1.85); ctx.stroke();
+  }
+  ctx.restore();
+}
+
+/* ---------- the whole frame ---------- */
+function draw() {
+  const k = view.scale * view.dpr;
+  ctx.setTransform(1, 0, 0, 1, 0, 0);
+  ctx.clearRect(0, 0, cv.width, cv.height);
+  if (!maze) return;
+  if (!maze.cache || maze.cacheK !== k) buildMazeCache();
+  ctx.drawImage(maze.cache, 0, Math.round(CONFIG.hudTop * k));
+  ctx.setTransform(k, 0, 0, k, 0, 0);
+  drawHud();
+  ctx.save();
+  ctx.translate(0, CONFIG.hudTop);
+  ctx.beginPath(); ctx.rect(0, 0, W, MAZE_H); ctx.clip();
+  // flash the floor when the level is cleared
+  if (state === "cleared" && Math.floor(stateTime * 6) % 2 === 0) { ctx.fillStyle = "rgba(255,255,255,.45)"; ctx.fillRect(0, 0, W, MAZE_H); }
+  drawItems();
+  if (bonus) {
+    const bob = Math.sin(clock * 5) * 2;
+    if (bonus.time > 2 || Math.floor(clock * 8) % 2) drawBonus(bonus.kind, maze.bonus.c * T + T / 2, maze.bonus.r * T + T / 2 + bob, T * 0.42);
+  }
+  if (player && state !== "menu") {
+    if (state !== "dying" || stateTime < 0.25) bunnies.forEach(b => { if (state !== "cleared") drawBunny(b); });
+    const px = player.x * T + T / 2, py = player.y * T + T / 2;
+    if (state === "dying") {
+      const t = Math.max(0, stateTime - 0.25) / (CONFIG.dieTime - 0.4);
+      if (t < 1) drawGobbles(player, px, py - Math.sin(Math.min(1, t) * Math.PI) * 10, T, { spin: t * 9, shrink: 1 - t * 0.85 });
+    } else {
+      // draw twice near the vent so he slides out the other side smoothly
+      drawGobbles(player, px, py, T);
+      if (px < T) drawGobbles(player, px + W, py, T, { icon: true });
+      if (px > W - T) drawGobbles(player, px - W, py, T, { icon: true });
+    }
+  }
+  particles.forEach(p => {
+    ctx.globalAlpha = 1 - p.t / p.life; ctx.fillStyle = p.color;
+    ctx.beginPath(); ctx.arc(p.x * T + T / 2, p.y * T + T / 2, 2.5, 0, 7); ctx.fill();
+  });
+  ctx.globalAlpha = 1;
+  ctx.textAlign = "center"; ctx.textBaseline = "middle";
+  popups.forEach(p => {
+    ctx.globalAlpha = Math.min(1, 2.2 - p.t * 2);
+    ctx.font = "bold 12px 'Arial Rounded MT Bold', 'Trebuchet MS', sans-serif";
+    ctx.lineWidth = 3; ctx.strokeStyle = "#fff";
+    const y = p.y * T + T / 2 - p.t * 14;
+    ctx.strokeText(p.text, p.x * T + T / 2, y); ctx.fillStyle = p.color; ctx.fillText(p.text, p.x * T + T / 2, y);
+  });
+  ctx.globalAlpha = 1;
+  if (state === "ready") banner("READY!", "#ffb02e", maze.bonus.r, "Level " + level + " · " + maze.name);
+  if (state === "cleared") banner("SPARKLING CLEAN!", "#2ec4b6", maze.bonus.r);
+  ctx.restore();
+  if (paused && state !== "menu" && state !== "gameover") {
+    ctx.fillStyle = "rgba(40,22,80,.55)"; ctx.fillRect(0, 0, W, H);
+    ctx.fillStyle = "#fff"; ctx.textAlign = "center"; ctx.textBaseline = "middle";
+    ctx.font = "bold 34px 'Arial Rounded MT Bold', 'Trebuchet MS', sans-serif";
+    ctx.fillText("PAUSED", W / 2, H / 2 - 10);
+    ctx.font = "15px 'Trebuchet MS', sans-serif";
+    ctx.fillText(touchMode ? "Tap ▶ to keep gobbling" : "Press P to keep gobbling", W / 2, H / 2 + 22);
+  }
+}
+function banner(text, color, row, sub) {
+  ctx.font = "bold 20px 'Arial Rounded MT Bold', 'Trebuchet MS', sans-serif";
+  ctx.textAlign = "center"; ctx.textBaseline = "middle";
+  const y = row * T + T / 2;
+  ctx.lineWidth = 5; ctx.strokeStyle = "#3b2a5a"; ctx.strokeText(text, W / 2, y);
+  ctx.fillStyle = color; ctx.fillText(text, W / 2, y);
+  if (sub) {
+    ctx.font = "bold 11px 'Trebuchet MS', sans-serif"; ctx.lineWidth = 3;
+    ctx.strokeText(sub, W / 2, y + 17); ctx.fillStyle = "#fff"; ctx.fillText(sub, W / 2, y + 17);
+  }
+}
+function drawHud() {
+  const C = CONFIG.colors, ht = CONFIG.hudTop, hb = CONFIG.hudBottom;
+  ctx.fillStyle = C.hud; ctx.fillRect(0, 0, W, ht); ctx.fillRect(0, H - hb, W, hb);
+  ctx.textBaseline = "middle"; ctx.textAlign = "left";
+  ctx.fillStyle = C.hudAccent; ctx.font = "bold 10px 'Trebuchet MS', sans-serif";
+  ctx.fillText("SCORE", 12, 13); ctx.fillText("BEST", 140, 13);
+  ctx.fillStyle = C.hudText; ctx.font = "bold 19px 'Arial Rounded MT Bold', 'Trebuchet MS', sans-serif";
+  ctx.fillText(score.toLocaleString(), 12, 30);
+  ctx.fillText(bestScore().toLocaleString(), 140, 30);
+  ctx.fillStyle = C.hudAccent; ctx.font = "bold 10px 'Trebuchet MS', sans-serif";
+  ctx.fillText("LEVEL", 262, 13);
+  ctx.fillStyle = C.hudText; ctx.font = "bold 19px 'Arial Rounded MT Bold', 'Trebuchet MS', sans-serif";
+  ctx.fillText(String(level), 262, 30);
+  // lives as little Gobbles
+  const y = H - hb / 2;
+  for (let i = 0; i < Math.min(lives - (state === "menu" ? 0 : 1), 7); i++) {
+    drawGobbles({ face: 3, eyeX: 0.3, eyeY: 0 }, 22 + i * 26, y, T * 0.9, { icon: true });
+  }
+  // the bonus items for this level, plus the maze name
+  ctx.textAlign = "right"; ctx.fillStyle = "#d9c9ff"; ctx.font = "bold 11px 'Trebuchet MS', sans-serif";
+  if (maze) ctx.fillText(maze.name, W - 64, y);
+  for (let i = 0; i < CONFIG.bonusAt.length; i++) drawBonus(BONUS_KINDS[(level - 1 + i) % BONUS_KINDS.length], W - 46 + i * 24, y, 8);
+  if (fluffTimer > 0 && state === "playing") {
+    // fluff timer bar
+    ctx.fillStyle = "rgba(255,255,255,.2)"; rr(ctx, 12, ht - 6, W - 24, 4, 2); ctx.fill();
+    ctx.fillStyle = "#bfe3ff"; rr(ctx, 12, ht - 6, (W - 24) * fluffTimer / CONFIG.fluffTime, 4, 2); ctx.fill();
+  }
+}
+
+/* =====================================================================
+   SCREEN LAYOUT: fit the game to any screen, portrait or landscape,
+   leaving room for the D-pad when it is switched on
+   ===================================================================== */
+let touchMode = false, dpadOn = store.get("sockGobblerDpad", true);
+function applyTouchClasses() {
+  document.documentElement.classList.toggle("touch", touchMode);
+  document.documentElement.classList.toggle("dpad", touchMode && dpadOn);
+}
+function resize() {
+  const vw = window.innerWidth, vh = window.innerHeight, pad = 8;
+  const showPad = touchMode && dpadOn;
+  let areaW = vw - pad * 2, areaH = vh - pad * 2, dpadSize = 0, landscape = vw > vh;
+  if (showPad) {
+    dpadSize = Math.round(clamp(Math.min(vw, vh) * 0.36, 120, 190));
+    if (landscape) areaW -= dpadSize + pad; else areaH -= dpadSize + pad;
+  }
+  const scale = Math.max(0.2, Math.min(areaW / W, areaH / H));
+  const cw = Math.floor(W * scale), ch = Math.floor(H * scale);
+  let left = pad + (areaW - cw) / 2, top = pad + (areaH - ch) / 2;
+  // portrait with a D-pad: keep the maze and the pad together as one group
+  if (showPad && !landscape) top = Math.max(pad, (vh - ch - pad - dpadSize) / 2);
+  const wrap = $("wrap");
+  wrap.style.width = cw + "px"; wrap.style.height = ch + "px";
+  wrap.style.left = Math.round(left) + "px"; wrap.style.top = Math.round(top) + "px";
+  const dp = $("dpad");
+  if (showPad) {
+    dp.style.width = dp.style.height = dpadSize + "px";
+    if (landscape) { dp.style.left = (vw - dpadSize - pad) + "px"; dp.style.top = ((vh - dpadSize) / 2) + "px"; }
+    else { dp.style.left = ((vw - dpadSize) / 2) + "px"; dp.style.top = Math.min(vh - dpadSize - pad, top + ch + pad) + "px"; }
+  }
+  view.scale = scale;
+  view.dpr = Math.min(3, window.devicePixelRatio || 1);
+  cv.width = Math.round(cw * view.dpr); cv.height = Math.round(ch * view.dpr);
+  // pause + mute buttons sit in the top-right of the scoreboard
+  const size = Math.max(26, CONFIG.hudTop * 0.72 * scale);
+  [["pauseBtn", 2], ["muteBtn", 1]].forEach(([id, n]) => {
+    const b = $(id);
+    b.style.width = b.style.height = size + "px";
+    b.style.fontSize = size * 0.45 + "px";
+    b.style.top = (CONFIG.hudTop * scale - size) / 2 + "px";
+    b.style.left = (cw - n * (size + 6)) + "px";
+  });
+}
+addEventListener("resize", resize);
+addEventListener("orientationchange", () => setTimeout(resize, 250));
+
+/* =====================================================================
+   INPUT: keyboard, swipes and the D-pad
+   ===================================================================== */
+const KEYS = { ArrowUp: 0, KeyW: 0, ArrowLeft: 1, KeyA: 1, ArrowDown: 2, KeyS: 2, ArrowRight: 3, KeyD: 3 };
+function steer(d) { if (player && (state === "playing" || state === "ready")) player.want = d; }
+function togglePause(force) {
+  if (state === "menu" || state === "gameover") return;
+  paused = force !== undefined ? force : !paused;
+  $("pauseBtn").textContent = paused ? "▶" : "❚❚";
+}
+function toggleMute() { Sound.init(); Sound.setMuted(!Sound.muted); $("muteBtn").textContent = Sound.muted ? "🔇" : "🔊"; }
+
+addEventListener("keydown", e => {
+  Sound.init();
+  if (e.target && e.target.tagName === "INPUT") return;   // typing a name
+  const d = KEYS[e.code];
+  if (d !== undefined && state !== "menu") { e.preventDefault(); if (!paused) steer(d); return; }
+  if (e.code === "KeyP" || e.code === "Escape") { togglePause(); e.preventDefault(); }
+  else if (e.code === "KeyM") toggleMute();
+  else if (e.code === "Space" && state !== "menu" && state !== "gameover") e.preventDefault();
+});
+addEventListener("pointerdown", () => Sound.init(), { capture: true });
+
+// swipe anywhere: every time the finger travels far enough, turn that way
+let swipe = null;
+const inOverlay = t => t && t.closest && (t.closest(".overlay") || t.closest(".hudBtn") || t.closest("#dpad"));
+document.addEventListener("touchstart", e => {
+  Sound.init();
+  if (inOverlay(e.target)) return;
+  const t = e.changedTouches[0];
+  swipe = { id: t.identifier, x: t.clientX, y: t.clientY };
+  if (state !== "menu" && state !== "gameover") e.preventDefault();
+}, { passive: false });
+document.addEventListener("touchmove", e => {
+  if (inOverlay(e.target) && !e.target.closest("#dpad")) return;   // let the menus scroll
+  e.preventDefault();                                              // no page scrolling while playing
+  if (!swipe) return;
+  for (const t of e.changedTouches) {
+    if (t.identifier !== swipe.id) continue;
+    const dx = t.clientX - swipe.x, dy = t.clientY - swipe.y;
+    if (Math.max(Math.abs(dx), Math.abs(dy)) < CONFIG.swipeDistance) continue;
+    if (!paused) steer(Math.abs(dx) > Math.abs(dy) ? (dx > 0 ? 3 : 1) : (dy > 0 ? 2 : 0));
+    swipe.x = t.clientX; swipe.y = t.clientY;
+  }
+}, { passive: false });
+document.addEventListener("touchend", e => { if (swipe) for (const t of e.changedTouches) if (t.identifier === swipe.id) swipe = null; });
+// no pinch-zoom or double-tap zoom (iOS ignores user-scalable=no)
+["gesturestart", "gesturechange", "dblclick"].forEach(n => document.addEventListener(n, e => e.preventDefault(), { passive: false }));
+
+// on-screen D-pad: press and slide between arrows
+(function setupDpad() {
+  const pad = $("dpad"), btns = [...pad.querySelectorAll("button")];
+  let active = null;
+  function pick(x, y) {
+    const r = pad.getBoundingClientRect(), dx = x - (r.left + r.width / 2), dy = y - (r.top + r.height / 2);
+    if (Math.hypot(dx, dy) < r.width * 0.1) return active;
+    return Math.abs(dx) > Math.abs(dy) ? (dx > 0 ? 3 : 1) : (dy > 0 ? 2 : 0);
+  }
+  function set(d) {
+    active = d;
+    btns.forEach(b => b.classList.toggle("on", +b.dataset.dir === d));
+    if (d !== null && !paused) steer(d);
+  }
+  pad.addEventListener("pointerdown", e => { e.preventDefault(); Sound.init(); try { pad.setPointerCapture(e.pointerId); } catch (x) {} set(pick(e.clientX, e.clientY)); });
+  pad.addEventListener("pointermove", e => { if (active !== null) { const d = pick(e.clientX, e.clientY); if (d !== active) set(d); } });
+  ["pointerup", "pointercancel", "lostpointercapture"].forEach(n => pad.addEventListener(n, () => set(null)));
+  pad.addEventListener("contextmenu", e => e.preventDefault());
+})();
+
+$("pauseBtn").addEventListener("click", e => { e.stopPropagation(); togglePause(); });
+$("muteBtn").addEventListener("click", e => { e.stopPropagation(); toggleMute(); });
+$("muteBtn").textContent = Sound.muted ? "🔇" : "🔊";
+// take a break automatically if the page is hidden
+document.addEventListener("visibilitychange", () => { if (document.hidden && (state === "playing" || state === "ready")) togglePause(true); });
+addEventListener("blur", () => { if (state === "playing") togglePause(true); });
+
+/* =====================================================================
+   MENUS
+   ===================================================================== */
+function renderScores(el, highlight) {
+  el.textContent = "";
+  if (!highScores.length) {
+    const d = document.createElement("div"); d.className = "empty"; d.textContent = "No scores yet. Be the first Top Gobbler!";
+    el.appendChild(d); return;
+  }
+  const tb = document.createElement("table"); tb.className = "scores";
+  const head = tb.insertRow(); ["#", "Name", "Lvl", "Score"].forEach(h => { const th = document.createElement("th"); th.textContent = h; head.appendChild(th); });
+  highScores.forEach((s, i) => {
+    const tr = tb.insertRow(); if (i === highlight) tr.className = "me";
+    [i + 1, s.name, s.level || 1, s.score.toLocaleString()].forEach(v => { tr.insertCell().textContent = v; });
+  });
+  el.appendChild(tb);
+}
+function showMenu() {
+  setState("menu"); paused = false; $("pauseBtn").textContent = "❚❚";
+  $("over").hidden = true; $("menu").hidden = false;
+  renderScores($("menuScores"), -1);
+  level = 1; maze = loadMaze(0); player = null;
+  resize();
+}
+const nameInput = $("nameInput"), touchToggle = $("touchToggle"), dpadToggle = $("dpadToggle");
+nameInput.value = store.get("sockGobblerName", "");
+touchMode = siteSaysTouch();
+touchToggle.checked = touchMode; dpadToggle.checked = dpadOn;
+applyTouchClasses();
+touchToggle.addEventListener("change", () => { touchMode = touchToggle.checked; applyTouchClasses(); resize(); });
+dpadToggle.addEventListener("change", () => { dpadOn = dpadToggle.checked; store.set("sockGobblerDpad", dpadOn); applyTouchClasses(); resize(); });
+$("menuForm").addEventListener("submit", e => {
+  e.preventDefault();
+  Sound.init();
+  playerName = nameInput.value.trim() || "Player";
+  store.set("sockGobblerName", nameInput.value.trim());
+  nameInput.blur();
+  $("menu").hidden = true;
+  paused = false;
+  startGame();
+});
+$("againBtn").addEventListener("click", () => { Sound.init(); $("over").hidden = true; paused = false; startGame(); });
+$("menuBtn").addEventListener("click", showMenu);
+
+/* =====================================================================
+   MAIN LOOP
+   ===================================================================== */
+showMenu();
+let last = performance.now();
+function frame(now) {
+  const dt = Math.min(1 / 30, Math.max(0, (now - last) / 1000));   // cap so a hiccup can't teleport anyone
+  last = now;
+  if (!paused && state !== "menu" && state !== "gameover") update(dt);
+  else { clock += dt; if (!paused) updateEffects(dt); }
+  draw();
+  requestAnimationFrame(frame);
+}
+requestAnimationFrame(frame);
+
+// handy for tweaking and testing from the browser console
+window.SockGobbler = { CONFIG, MAZES, get state() { return state; }, get player() { return player; }, get bunnies() { return bunnies; },
+  get maze() { return maze; }, get score() { return score; }, get lives() { return lives; }, get level() { return level; },
+  set level(v) { level = v; }, startLevel, startGame, update, steer, open: (c, r) => open(maze, c, r) };
+})();
+</script>
+</body>
+</html>

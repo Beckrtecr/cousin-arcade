@@ -57,4 +57,11 @@ const GAMES = [
     thumbnail: "games/tank-battle/thumb.svg",
     color: "#8b5cf6",
   },
+  {
+    title: "Sock Gobbler",
+    maker: "Cousin Crew",
+    folder: "games/sock-gobbler",
+    thumbnail: "games/sock-gobbler/thumb.svg",
+    color: "#9b59e6",
+  },
 ];
