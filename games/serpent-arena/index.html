@@ -111,6 +111,27 @@
   #bank{margin-top:14px;font-size:14px;color:#ffd95a;font-weight:500}
   body.touch #pauseBtn{top:66px}
   .help{margin-top:16px;font-size:13px;color:#7f90b0;line-height:1.6}
+  [hidden]{display:none !important}
+  #menu{overflow-y:auto}
+  #menu .card{margin:auto}
+  #net{margin-top:16px;padding-top:14px;border-top:1px solid rgba(255,255,255,.08)}
+  #net .lbl{margin:0 0 8px}
+  .nrow{display:flex;gap:8px;align-items:center;justify-content:center;flex-wrap:wrap}
+  .nb{padding:10px 14px;border-radius:12px;cursor:pointer;font:600 15px 'Fredoka',sans-serif;color:#e8f6ff;
+    background:rgba(63,212,255,.14);border:1px solid rgba(63,212,255,.4)}
+  .nb:hover{filter:brightness(1.15)}
+  .nb.sm{padding:6px 10px;font-size:13px;color:#cfd8ea;background:rgba(255,255,255,.08);border-color:rgba(255,255,255,.16)}
+  #codeIn{width:96px;padding:10px 8px;border-radius:12px;border:1px solid rgba(255,255,255,.14);background:rgba(0,0,0,.35);color:#fff;
+    font:600 17px 'Fredoka',sans-serif;text-align:center;letter-spacing:.16em;text-transform:uppercase;outline:none;-webkit-user-select:text;user-select:text}
+  #codeIn:focus{border-color:#3fd4ff}
+  #codeIn::placeholder{color:#5f6f8f;letter-spacing:.1em}
+  #codeOut{font-size:26px;font-weight:700;letter-spacing:.16em;color:#ffe66b}
+  #netStatus{margin-top:8px;font-size:13px;color:#8fa3c8;line-height:1.45}
+  #netStatus.ok{color:#7dffb0}
+  #netStatus.bad{color:#ff9aa8}
+  #netHud{color:#7fdcff}
+  body.online #pauseBtn{display:none}
+  body.touch #netHud{display:none}
   .help kbd{display:inline-block;padding:0 6px;border-radius:6px;background:rgba(255,255,255,.1);color:#cfd8ea;font:500 12px 'Fredoka',sans-serif}
 </style>
 </head>
@@ -120,7 +141,7 @@
 <div id="board" class="hud hidden"><h3>Leaderboard</h3><ol id="boardList"></ol></div>
 <div id="stats" class="hud hidden">
   <div>Length <b id="len">10</b></div>
-  <div class="row"><span id="rank">Rank 1 of 1</span> &nbsp;·&nbsp; <span id="kills">0 kills</span> &nbsp;·&nbsp; <span id="keysHud">🔑 0</span></div>
+  <div class="row"><span id="rank">Rank 1 of 1</span> &nbsp;·&nbsp; <span id="kills">0 kills</span> &nbsp;·&nbsp; <span id="keysHud">🔑 0</span><span id="netHud"></span></div>
 </div>
 <canvas id="mini" class="hud hidden" width="264" height="264"></canvas>
 <div id="toasts" class="hud"></div>
@@ -149,6 +170,19 @@
     <button id="cont"></button>
     <button id="revive"></button>
     <button id="play">Play</button>
+    <div id="net">
+      <div class="lbl">Play with friends online</div>
+      <div class="nrow" id="netIdle">
+        <button class="nb" id="hostBtn">🏠 Host a room</button>
+        <input id="codeIn" maxlength="5" placeholder="CODE" autocomplete="off" spellcheck="false">
+        <button class="nb" id="joinBtn">Join</button>
+      </div>
+      <div class="nrow" id="netRoom" hidden>
+        <span class="lbl" style="margin:0">Room</span> <span id="codeOut"></span>
+        <button class="nb sm" id="copyBtn">Copy</button> <button class="nb sm" id="leaveBtn">Leave</button>
+      </div>
+      <div id="netStatus">One of you hosts a room, everyone else types in the code. Bots stay in to keep it busy.</div>
+    </div>
     <p class="help" id="help"></p>
   </div>
 </div>
@@ -296,6 +330,25 @@ const TIMERS = ['magnet', 'shield', 'turbo', 'dblCd', 'frzCd', 'tpCd', 'inf'];
 const hasRevive = s => s.keys > 0 || s.inf > 0;
 const fmt = n => { n = Math.floor(n); if (n < 1e4) return '' + n; const u = ['K', 'M', 'B', 'T', 'Q']; let i = -1; while (n >= 1000 && i < u.length - 1) { n /= 1000; i++; } return (n < 100 ? n.toFixed(1) : Math.round(n)) + u[i]; };
 const fx = [];
+let nextId = 1, nextFoodId = 1;
+// online play (filled in further down); declared here so the simulation can check it
+const NET = { role: null, peer: null, code: '', guests: [], conn: null, open: false, joined: false,
+  map: new Map(), fmap: new Map(), eaten: new Map(), board: [], sendT: 0, foodT: 0, boardT: 0, inT: 0 };
+const isGuest = () => NET.role === 'guest';
+function addFx(x, y, r, c) {
+  fx.push({ x, y, t: 0, r, c });
+  if (NET.role === 'host') netBroadcast({ t: 'fx', x: x | 0, y: y | 0, r, c });
+}
+// a message for one snake's owner: the person at this screen, or a friend online
+function notify(s, html) {
+  if (!s) return;
+  if (s === player) toast(html);
+  else if (s.net) sendTo(s.net, { t: 'toast', h: html });
+}
+function toastAll(html) {
+  if (playing) toast(html);
+  if (NET.role === 'host') netBroadcast({ t: 'toast', h: html });
+}
 // same shop, same rules, for the player and for bots
 function buy(s, item) {
   if (!s.alive) return 'dead';
@@ -311,21 +364,22 @@ function buy(s, item) {
     case 'turbo': s.turbo = 20; break;
     case 'freeze':
       s.frzCd = 30;
-      fx.push({ x: s.x, y: s.y, t: 0, r: FREEZE_R, c: '150,225,255' });
+      addFx(s.x, s.y, FREEZE_R, '150,225,255');
       for (const o of snakes) {
         if (o === s || o.ghost > 0 || o.shield > 0 || Math.hypot(o.x - s.x, o.y - s.y) > FREEZE_R) continue;
         o.frozen = 3;
-        if (o === player) toast(`❄️ Frozen by <b>${esc(s.name)}</b>!`);
+        notify(o, `❄️ Frozen by <b>${esc(s.name)}</b>!`);
       }
       break;
     case 'teleport': {
       s.tpCd = 10;
-      fx.push({ x: s.x, y: s.y, t: 0, r: 160, c: '200,150,255' });
+      addFx(s.x, s.y, 160, '200,150,255');
       const [x, y] = freeSpot(500, R * 0.75);
       s.ang = s.tAng = Math.atan2(-y, -x);
       s.layBody(x, y); s.ghost = Math.max(s.ghost, 2);
-      fx.push({ x, y, t: 0, r: 160, c: '200,150,255' });
+      addFx(x, y, 160, '200,150,255');
       if (s === player) input.ang = s.ang;
+      else if (s.net) sendTo(s.net, { t: 'ang', a: s.ang });
       break;
     }
   }
@@ -333,7 +387,7 @@ function buy(s, item) {
 }
 function botShop(s) {
   if (s.inf > 0) { buy(s, 'double'); buy(s, 'magnet'); buy(s, 'turbo'); buy(s, 'shield'); return; }
-  if (s.keys >= PRICE.inf) { if (buy(s, 'inf') === 'ok' && playing) toast(`<b>${esc(s.name)}</b> unlocked infinite keys!`); }
+  if (s.keys >= PRICE.inf) { if (buy(s, 'inf') === 'ok') toastAll(`<b>${esc(s.name)}</b> unlocked infinite keys!`); }
   else if (s.persona === 0) return;                                   // saver: holding out for infinite
   else if (s.keys >= PRICE.double) buy(s, 'double');
   else if (s.persona === 2 && s.keys >= PRICE.magnet) buy(s, 'magnet');
@@ -371,6 +425,7 @@ const segsFor = sc => Math.min(680, 16 + (sc * 0.32 | 0));
 
 class Snake {
   constructor(name, skin, x, y, score, bot) {
+    this.id = nextId++;
     this.name = name; this.skin = skin; this.score = score; this.bot = bot;
     this.alive = true; this.kills = 0; this.keys = 0; this.ghost = 0; this.magnet = 0; this.dblCd = 0; this.inf = 0; this.shield = 0; this.turbo = 0; this.frzCd = 0; this.tpCd = 0; this.frozen = 0;
     this.ang = rand(0, TAU); this.tAng = this.ang;
@@ -423,7 +478,7 @@ class Snake {
       this.score -= loss; this.dropAcc += loss * 0.55;
       if (this.dropAcc >= 1.5) {
         const n = this.xs.length - 1;
-        addFood(this.xs[n] + rand(-4, 4), this.ys[n] + rand(-4, 4), this.dropAcc, this.skin.hues[0]);
+        if (!isGuest()) addFood(this.xs[n] + rand(-4, 4), this.ys[n] + rand(-4, 4), this.dropAcc, this.skin.hues[0]);
         this.dropAcc = 0;
       }
     }
@@ -448,7 +503,7 @@ class Snake {
 function addFood(x, y, v, hue) {
   const d = Math.hypot(x, y);
   if (d > R - 12) { const k = (R - 12) / d; x *= k; y *= k; }
-  foods.push({ x, y, v, hue, r: Math.min(15, 4 + Math.sqrt(v) * 2.3), ph: rand(0, TAU), age: 0, eater: null, et: 0, dead: false });
+  foods.push({ id: nextFoodId++, x, y, v, hue, r: Math.min(15, 4 + Math.sqrt(v) * 2.3), ph: rand(0, TAU), age: 0, eater: null, et: 0, dead: false });
 }
 function spawnNaturalFood() {
   const a = rand(0, TAU), d = Math.sqrt(Math.random()) * (R - 30);
@@ -609,13 +664,12 @@ function dropBody(s) {
 function kill(s, killer) {
   if (!s.alive) return;
   s.alive = false;
-  if (!(s === player && hasRevive(s))) { dropBody(s); dropKeys(s); }
+  if (!((s === player || s.net) && hasRevive(s))) { dropBody(s); dropKeys(s); }
   if (killer && killer.alive !== undefined) killer.kills++;
   if (s === player) onPlayerDeath(killer);
-  else {
-    respawns.push(rand(1.5, 4));
-    if (killer === player && player) toast(`You eliminated <b>${esc(s.name)}</b>`);
-  }
+  else if (s.net) remoteDeath(s, killer);
+  else respawns.push(rand(1.5, 4));
+  if (killer && killer !== s) notify(killer, `You eliminated <b>${esc(s.name)}</b>`);
 }
 
 function update(dt) {
@@ -631,6 +685,7 @@ function update(dt) {
 
   // decide
   for (const s of snakes) {
+    if (s.net) { s.tAng = s.net.ang; s.boost = s.net.boost; continue; }
     if (!s.bot) continue;
     s.thinkT -= dt;
     if (s.thinkT <= 0) { const step = 0.05 + (1 - s.skill) * 0.12; s.thinkT = step; think(s, step); }
@@ -711,6 +766,7 @@ function update(dt) {
         worldKeys.splice(i, 1);
         s.keys++;
         if (s === player) { toast(`Key collected — you have <b>${s.keys}</b>`); updateHud(); }
+        else if (s.net) notify(s, `Key collected — you have <b>${s.keys}</b>`);
         break;
       }
       if (s.magnet > 0 && d < MAG_R) { kx.x += dx / d * 400 * dt; kx.y += dy / d * 400 * dt; }
@@ -770,6 +826,7 @@ boostBtn.addEventListener('pointerdown', e => { input.btnBoost = true; boostBtn.
 ['pointerup', 'pointercancel', 'pointerleave'].forEach(t => boostBtn.addEventListener(t, () => { input.btnBoost = false; boostBtn.classList.remove('on'); }));
 
 window.addEventListener('keydown', e => {
+  if (e.target === codeIn) { if (e.key === 'Enter') joinRoom(); return; }
   if (e.target === nickEl) { if (e.key === 'Enter') { if (savedRun) continueRun(); else startGame(); } return; }
   const k = e.key, d = dirKey(k);
   if (k === ' ' || k === 'Shift') { input.keyBoost = true; e.preventDefault(); }
@@ -852,7 +909,7 @@ function drawSnake(s) {
   const fs = Math.max(13, r * 0.85);
   ctx.font = `600 ${fs}px Fredoka, system-ui, sans-serif`;
   ctx.textAlign = 'center';
-  ctx.fillStyle = s === player ? 'rgba(255,230,107,0.9)' : s.inf > 0 ? 'rgba(255,200,80,0.9)' : 'rgba(255,255,255,0.62)';
+  ctx.fillStyle = s === player ? 'rgba(255,230,107,0.9)' : !s.bot ? 'rgba(140,220,255,0.95)' : s.inf > 0 ? 'rgba(255,200,80,0.9)' : 'rgba(255,255,255,0.62)';
   ctx.fillText((s.inf > 0 ? '∞ ' : '') + s.name, hx, hy + r + fs + 4);
   ctx.globalAlpha = 1;
 }
@@ -948,6 +1005,19 @@ const esc = t => t.replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&
 
 function toast(html) {
   const d = document.createElement('div'); d.className = 'toast'; d.innerHTML = html;
+  showToast(d);
+}
+// toasts from the host: keep plain text and <b>, drop anything else
+function safeToast(html) {
+  const t = document.createElement('template'); t.innerHTML = String(html).slice(0, 400);
+  const d = document.createElement('div'); d.className = 'toast';
+  for (const n of t.content.childNodes) {
+    if (n.nodeName === 'B') { const b = document.createElement('b'); b.textContent = n.textContent; d.appendChild(b); }
+    else d.appendChild(document.createTextNode(n.textContent));
+  }
+  showToast(d);
+}
+function showToast(d) {
   toastsEl.appendChild(d);
   while (toastsEl.children.length > 3) toastsEl.firstChild.remove();
   setTimeout(() => d.remove(), 2700);
@@ -955,38 +1025,45 @@ function toast(html) {
 const clock = t => (t / 60 | 0) + ':' + String(Math.floor(t % 60)).padStart(2, '0');
 function playerBuy(item) {
   if (!playing || paused || !player || !player.alive) return;
-  const r = buy(player, item);
-  if (r === 'ok') toast({
+  if (isGuest()) { netSend({ t: 'buy', it: item }); return; }
+  const msg = buyMsg(player, item, buy(player, item));
+  if (msg) toast(msg);
+  updateHud();
+}
+function buyMsg(s, item, r) {
+  if (r === 'ok') return {
     magnet: '🧲 <b>Magnet</b> on for 30 seconds',
-    double: `×2 — length doubled to <b>${fmt(player.score)}</b>`,
+    double: `×2 — length doubled to <b>${fmt(s.score)}</b>`,
     inf: '∞ <b>Infinite keys</b> for 10 minutes — the shop is free',
     shield: '🛡️ <b>Shield</b> up for 12 seconds',
     turbo: '⚡ <b>Turbo</b> — boosting is free for 20 seconds',
     freeze: '❄️ <b>Freeze!</b> Nearby snakes are stuck for 3 seconds',
     teleport: '🌀 <b>Teleported</b> somewhere quieter',
-  }[item]);
-  else if (r === 'poor') toast(`Need <b>${PRICE[item] - player.keys}</b> more ${PRICE[item] - player.keys === 1 ? 'key' : 'keys'}`);
-  else if (r === 'cooldown') toast(`Recharges in <b>${Math.ceil(player[COOL[item]])}s</b>`);
-  updateHud();
+  }[item];
+  if (r === 'poor') return `Need <b>${PRICE[item] - s.keys}</b> more ${PRICE[item] - s.keys === 1 ? 'key' : 'keys'}`;
+  if (r === 'cooldown') return `Recharges in <b>${Math.ceil(s[COOL[item]])}s</b>`;
+  return null;
 }
 function setPaused(v) {
-  if (v && (!playing || !player || !player.alive)) return;
+  if (v && (!playing || !player || !player.alive || NET.role)) return;
   paused = v;
   pauseEl.classList.toggle('hidden', !v);
   input.mouseBoost = input.keyBoost = input.btnBoost = false;
 }
 function updateHud() {
-  const sorted = snakes.slice().sort((a, b) => b.score - a.score);
+  const guest = isGuest();
+  const isMe = guest ? (s => !!player && player.alive && s.id === player.id) : (s => s === player);
+  const sorted = (guest ? NET.board : snakes).slice().sort((a, b) => b.score - a.score);
   let html = '';
   for (let i = 0; i < Math.min(10, sorted.length); i++) {
     const s = sorted[i];
-    html += `<li class="${s === player ? 'me' : ''}"><span class="n">${i + 1}.</span><span class="nm">${s.inf > 0 ? "∞ " : ""}${esc(s.name)}</span><span class="sc">${fmt(s.score)}</span></li>`;
+    html += `<li class="${isMe(s) ? 'me' : ''}"><span class="n">${i + 1}.</span><span class="nm">${s.inf > 0 ? "∞ " : ""}${esc(s.name)}</span><span class="sc">${fmt(s.score)}</span></li>`;
   }
   if (player && player.alive) {
-    const rank = sorted.indexOf(player) + 1;
+    const rank = (sorted.findIndex(isMe) + 1) || sorted.length + 1;
     if (rank > 10) html += `<li class="me"><span class="n">${rank}.</span><span class="nm">${esc(player.name)}</span><span class="sc">${fmt(player.score)}</span></li>`;
     lenEl.textContent = fmt(player.score);
-    rankEl.textContent = `Rank ${rank} of ${sorted.length}`;
+    rankEl.textContent = `Rank ${rank} of ${Math.max(rank, sorted.length)}`;
     killsEl.textContent = player.kills + (player.kills === 1 ? ' kill' : ' kills');
     keysHud.textContent = player.inf > 0 ? '🔑 ∞ ' + clock(player.inf) : '🔑 ' + player.keys;
     const free = player.inf > 0;
@@ -1014,6 +1091,12 @@ function drawMini() {
     mctx.fillStyle = `hsla(${col[0]},${col[1]}%,62%,0.85)`;
     const sz = 2 + s.r * 0.08;
     for (let i = 0; i < s.xs.length; i += 14) mctx.fillRect(c + s.xs[i] * k - sz / 2, c + s.ys[i] * k - sz / 2, sz, sz);
+  }
+  if (isGuest()) for (const b of NET.board) {        // snakes too far away to be sent in full: just a dot
+    if (NET.map.has(b.id)) continue;
+    const col = SKINS[b.skin].cols.find(q => q[1] > 20) || [0, 0, 80];
+    mctx.fillStyle = `hsla(${col[0]},${col[1]}%,62%,0.85)`;
+    mctx.fillRect(c + b.x * k - 2, c + b.y * k - 2, 4, 4);
   }
   for (const kx of worldKeys) {
     mctx.fillStyle = '#ffd23f'; mctx.beginPath(); mctx.arc(c + kx.x * k, c + kx.y * k, 4 + Math.sin(time * 4 + kx.ph), 0, TAU); mctx.fill();
@@ -1061,6 +1144,7 @@ function enterPlay() {
 }
 function revive() {
   if (playing || !fallen || !hasRevive(fallen)) return;
+  if (isGuest()) { netSend({ t: 'revive' }); fallen = null; player = null; enterPlay(); return; }
   const s = fallen; fallen = null;
   if (!(s.inf > 0)) s.keys--;
   s.alive = true; s.ghost = 3; s.boost = false;
@@ -1076,6 +1160,7 @@ const contBtn = $('cont');
 const RUN_TIMERS = ['inf', 'magnet', 'shield', 'turbo', 'dblCd', 'frzCd', 'tpCd'];
 let savedRun = null;
 function saveRun() {
+  if (isGuest()) return;               // an online run lives on the host's computer
   if (!playing || !player || !player.alive) return;
   const run = { v: 1, name: player.name, skin: SKINS.indexOf(player.skin), score: player.score, kills: player.kills, x: player.x, y: player.y, ang: player.ang };
   for (const t of RUN_TIMERS) run[t] = Math.max(0, player[t]);
@@ -1117,6 +1202,15 @@ window.addEventListener('pagehide', saveRun);
 
 function startGame() {
   if (playing) return;
+  if (isGuest()) {
+    if (!NET.joined) return;
+    const name = nickEl.value.trim() || 'You';
+    try { localStorage.setItem('sa_nick', nickEl.value.trim()); localStorage.setItem('sa_skin', selSkin); } catch (e) {}
+    netSend({ t: 'spawn', n: name, sk: selSkin, k: bank, i: bankInf });
+    fallen = null; player = null;
+    enterPlay();
+    return;
+  }
   clearRun();
   if (fallen) { dropBody(fallen); fallen = null; }
   const name = nickEl.value.trim() || 'You';
@@ -1168,11 +1262,417 @@ pauseBtn.addEventListener('pointerdown', e => { e.preventDefault(); e.stopPropag
 $('resume').addEventListener('click', () => setPaused(false));
 document.addEventListener('visibilitychange', () => { if (document.hidden) { saveRun(); setPaused(true); } });
 
+/* ───────────── online: peer-to-peer with PeerJS ─────────────
+   The HOST's browser runs the real arena (bots, food, keys, every snake).
+   Each friend (GUEST) sends where they're steering about 20 times a second
+   and draws the part of the arena around them that the host sends back.  */
+const ID_PREFIX = 'cousinarcade-serpent-', MAX_GUESTS = 7;
+const SNAP_DT = 1 / 20, FOOD_DT = 1 / 10, BOARD_DT = 0.5;
+const r1 = v => Math.round(v * 10) / 10, r2 = v => Math.round(v * 100) / 100;
+const num = (v, d = 0) => { v = +v; return Number.isFinite(v) ? v : d; };
+const codeIn = $('codeIn'), netStatusEl = $('netStatus');
+const DEFAULT_NET_MSG = netStatusEl.textContent;
+
+function loadPeerLib() {
+  return new Promise((res, rej) => {
+    if (window.Peer) return res();
+    const urls = ['https://cdn.jsdelivr.net/npm/peerjs@1.5.4/dist/peerjs.min.js', 'https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js'];
+    let i = 0;
+    const next = () => {
+      if (i >= urls.length) return rej(new Error('lib'));
+      const sc = document.createElement('script'); sc.src = urls[i++];
+      sc.onload = () => window.Peer ? res() : next(); sc.onerror = next;
+      document.head.appendChild(sc);
+    };
+    next();
+  });
+}
+function netStatus(msg, cls) { netStatusEl.textContent = msg; netStatusEl.className = cls || ''; }
+function netUI() {
+  $('netIdle').hidden = !!NET.role;
+  $('netRoom').hidden = !NET.role || !NET.code;
+  $('codeOut').textContent = NET.code;
+  $('copyBtn').style.display = NET.role === 'host' ? '' : 'none';
+  document.body.classList.toggle('online', !!NET.role);
+  const n = NET.role === 'host' ? NET.guests.filter(g => g.open).length + 1 : 0;
+  $('netHud').textContent = NET.role === 'host' ? ` · 🌐 ${NET.code} · ${n} ${n === 1 ? 'player' : 'players'}` : NET.joined ? ` · 🌐 ${NET.code}` : '';
+}
+function sendTo(g, m) { if (g && g.open) try { g.conn.send(m); } catch (e) {} }
+function netBroadcast(m) { for (const g of NET.guests) sendTo(g, m); }
+function netSend(m) { if (NET.conn && NET.open) try { NET.conn.send(m); } catch (e) {} }
+function genCode() { const A = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789'; let c = ''; for (let i = 0; i < 5; i++) c += A[Math.random() * A.length | 0]; return c; }
+function peerError(e) {
+  const t = e && e.type;
+  if (t === 'network' || t === 'server-error' || t === 'socket-error' || t === 'socket-closed')
+    return "Couldn't reach the online server. Check your internet. Some school networks block online games.";
+  if (t === 'browser-incompatible') return "This browser can't do online play. Try Chrome, Edge, Safari or Firefox.";
+  return "Something went wrong (" + (t || 'error') + "). Try again.";
+}
+async function netReady() {
+  netStatus('Loading online play…');
+  try { await loadPeerLib(); return true; }
+  catch (e) { netStatus("Couldn't load online play. Check your internet and try again.", 'bad'); return false; }
+}
+
+/* ── leaving: back to your own arena ── */
+function netLeave(msg) {
+  const role = NET.role, peer = NET.peer;
+  if (role === 'host') {
+    for (const g of NET.guests.slice()) { sendTo(g, { t: 'bye' }); dropGuest(g, true); }
+  } else if (NET.conn) { netSend({ t: 'bye' }); const c = NET.conn; setTimeout(() => { try { c.close(); } catch (e) {} }, 100); }
+  if (peer) setTimeout(() => { try { peer.destroy(); } catch (e) {} }, 150);
+  const wasGuest = role === 'guest' && NET.joined;
+  Object.assign(NET, { role: null, peer: null, code: '', guests: [], conn: null, open: false, joined: false, board: [] });
+  NET.map.clear(); NET.fmap.clear(); NET.eaten.clear();
+  if (wasGuest) {
+    // the online arena belonged to the host: build a fresh one of our own
+    deathTimer = -1; lastStats = null; player = null; fallen = null;
+    initWorld();
+    playBtn.textContent = 'Play'; playBtn.classList.remove('alt');
+    loadRun();
+    if (playing) showMenu();
+    else { reviveBtn.style.display = 'none'; resultEl.style.display = 'none'; }
+  }
+  netStatus(msg || DEFAULT_NET_MSG, msg ? 'bad' : '');
+  netUI();
+}
+
+/* ── host ── */
+async function hostRoom() {
+  if (NET.role || !(await netReady())) return;
+  makeHostPeer(0);
+}
+function makeHostPeer(tries) {
+  const code = genCode(), peer = new Peer(ID_PREFIX + code, { debug: 0 });
+  Object.assign(NET, { role: 'host', peer, code: '', guests: [] });
+  netStatus('Making a room…'); netUI();
+  peer.on('open', () => {
+    if (NET.peer !== peer) return;
+    NET.code = code;
+    netStatus('Send your friends this code. They can join any time, even mid-game. Keep this tab open while you play.', 'ok');
+    netUI();
+  });
+  peer.on('connection', c => { if (NET.peer === peer) addGuest(c); });
+  peer.on('error', e => {
+    if (NET.peer !== peer) return;
+    if (e.type === 'unavailable-id' && tries < 5) { try { peer.destroy(); } catch (x) {} makeHostPeer(tries + 1); }
+    else if (!NET.code) netLeave(peerError(e));
+  });
+  peer.on('disconnected', () => { if (NET.peer === peer) try { peer.reconnect(); } catch (e) {} });
+}
+function addGuest(c) {
+  const g = { conn: c, open: false, ang: 0, boost: false, cx: 0, cy: 0, hw: 800, hh: 500, snake: null, fallen: null, name: 'Friend' };
+  c.on('open', () => {
+    if (NET.guests.filter(x => x.open).length >= MAX_GUESTS) { try { c.send({ t: 'full' }); } catch (e) {} setTimeout(() => c.close(), 300); return; }
+    g.open = true; NET.guests.push(g);
+    sendTo(g, { t: 'welcome' });
+    netUI();
+  });
+  c.on('data', m => { if (NET.guests.includes(g)) onGuestMsg(g, m); });
+  c.on('close', () => dropGuest(g));
+  c.on('error', () => dropGuest(g));
+}
+function dropGuest(g, quiet) {
+  const i = NET.guests.indexOf(g);
+  if (i < 0) return;
+  NET.guests.splice(i, 1); g.open = false;
+  try { g.conn.close(); } catch (e) {}
+  // whatever they leave behind turns into food for everyone else
+  if (g.snake && g.snake.alive) { g.snake.alive = false; dropBody(g.snake); snakes = snakes.filter(s => s.alive); }
+  if (g.fallen) dropBody(g.fallen);
+  g.snake = g.fallen = null;
+  if (!quiet && g.name) toastAll(`<b>${esc(g.name)}</b> left the arena`);
+  netUI();
+}
+const cleanName = n => String(n || '').replace(/[\u0000-\u001f<>]/g, '').trim().slice(0, 14) || 'Friend';
+function onGuestMsg(g, m) {
+  if (!m || typeof m !== 'object') return;
+  switch (m.t) {
+    case 'i':
+      g.ang = wrap(num(m.a)); g.boost = !!m.b;
+      g.cx = clamp(num(m.x), -R, R); g.cy = clamp(num(m.y), -R, R);
+      g.hw = clamp(num(m.w, 800), 200, 2600); g.hh = clamp(num(m.h, 500), 200, 2600);
+      break;
+    case 'spawn': {
+      if (g.snake && g.snake.alive) return;
+      if (g.fallen) { dropBody(g.fallen); g.fallen = null; }
+      const first = !g.joinedOnce;
+      g.name = cleanName(m.n); g.joinedOnce = true;
+      const [x, y] = freeSpot(700, R * 0.6);
+      const s = new Snake(g.name, SKINS[clamp(m.sk | 0, 0, SKINS.length - 1)], x, y, 10, false);
+      s.keys = clamp(Math.floor(num(m.k)), 0, 1e6); s.inf = clamp(num(m.i), 0, INF_TIME);
+      s.ang = s.tAng = g.ang = Math.atan2(-y, -x);
+      s.net = g; g.snake = s; snakes.push(s);
+      sendTo(g, { t: 'ang', a: s.ang });
+      if (first) toastAll(`<b>${esc(g.name)}</b> joined the arena`);
+      break;
+    }
+    case 'revive': {
+      const s = g.fallen;
+      if (!s || !hasRevive(s) || (g.snake && g.snake.alive)) return;
+      g.fallen = null;
+      if (!(s.inf > 0)) s.keys--;
+      s.alive = true; s.ghost = 3; s.boost = false;
+      if (Math.hypot(s.x, s.y) > R - 200) s.ang = Math.atan2(-s.y, -s.x);
+      s.tAng = g.ang = s.ang;
+      g.snake = s; snakes.push(s);
+      sendTo(g, { t: 'ang', a: s.ang });
+      notify(s, s.inf > 0 ? 'Revived — free with <b>infinite keys</b>' : `Revived — <b>${s.keys}</b> ${s.keys === 1 ? 'key' : 'keys'} left`);
+      break;
+    }
+    case 'buy':
+      if (g.snake && g.snake.alive && Object.prototype.hasOwnProperty.call(PRICE, m.it)) {
+        const msg = buyMsg(g.snake, m.it, buy(g.snake, m.it));
+        if (msg) notify(g.snake, msg);
+      }
+      break;
+    case 'bye': dropGuest(g); break;
+  }
+}
+function remoteDeath(s, killer) {
+  const g = s.net;
+  g.snake = null;
+  g.fallen = hasRevive(s) ? s : null;
+  sendTo(g, { t: 'dead', by: killer ? killer.name : null, sc: s.score | 0, kl: s.kills, k: s.keys, i: r1(Math.max(0, s.inf)) });
+}
+
+// what one snake looks like on the wire: a few numbers, then its body as small steps
+function encSnake(s) {
+  const a = [s.id, s.name, SKINS.indexOf(s.skin), Math.round(s.score), r2(s.ang), r2(s.tAng),
+    (s.boosting ? 1 : 0) | (s.boost ? 2 : 0) | (s.bot ? 0 : 4),
+    r1(Math.max(0, s.ghost)), r1(Math.max(0, s.shield)), r1(Math.max(0, s.frozen)), r1(Math.max(0, s.magnet)), r1(Math.max(0, s.turbo)), s.inf > 0 ? 1 : 0];
+  const xs = s.xs, ys = s.ys;
+  let px = Math.round(xs[0]), py = Math.round(ys[0]);
+  a.push(px, py);
+  for (let i = 1; i < xs.length; i++) { const x = Math.round(xs[i]), y = Math.round(ys[i]); a.push(x - px, y - py); px = x; py = y; }
+  return a;
+}
+function inBox(s, cx, cy, hw, hh) {
+  const pad = s.r * 3 + 60, xs = s.xs, ys = s.ys;
+  for (let i = 0; i < xs.length; i += 6) if (Math.abs(xs[i] - cx) < hw + pad && Math.abs(ys[i] - cy) < hh + pad) return true;
+  return Math.abs(xs[xs.length - 1] - cx) < hw + pad && Math.abs(ys[ys.length - 1] - cy) < hh + pad;
+}
+function guestView(g) {
+  const me = g.snake && g.snake.alive ? g.snake : null;
+  return me ? [me.x, me.y] : [g.cx, g.cy];
+}
+function hostTick(dt) {
+  if (!NET.guests.length) return;
+  NET.sendT -= dt; NET.foodT -= dt; NET.boardT -= dt;
+  if (NET.sendT <= 0) {
+    NET.sendT = SNAP_DT;
+    const enc = new Map();
+    for (const g of NET.guests) {
+      if (!g.open) continue;
+      const [cx, cy] = guestView(g), list = [];
+      for (const s of snakes) {
+        if (s !== g.snake && !inBox(s, cx, cy, g.hw, g.hh)) continue;
+        let e = enc.get(s); if (!e) { e = encSnake(s); enc.set(s, e); }
+        list.push(e);
+      }
+      const s = g.snake && g.snake.alive ? g.snake : null;
+      const me = s ? { id: s.id, k: s.keys, kl: s.kills, i: r1(Math.max(0, s.inf)), d: r1(Math.max(0, s.dblCd)), f: r1(Math.max(0, s.frzCd)), p: r1(Math.max(0, s.tpCd)) } : null;
+      sendTo(g, { t: 's', s: list, me });
+    }
+  }
+  if (NET.foodT <= 0) {
+    NET.foodT = FOOD_DT;
+    const keys = [];
+    for (const k of worldKeys) keys.push(Math.round(k.x), Math.round(k.y));
+    for (const g of NET.guests) {
+      if (!g.open) continue;
+      const [cx, cy] = guestView(g), hw = g.hw + 250, hh = g.hh + 250, a = [];
+      for (const f of foods) {
+        if (f.eater || Math.abs(f.x - cx) > hw || Math.abs(f.y - cy) > hh) continue;
+        a.push(f.id, Math.round(f.x), Math.round(f.y), f.hue, Math.round(f.r * 10));
+      }
+      sendTo(g, { t: 'f', f: a, k: keys });
+    }
+  }
+  if (NET.boardT <= 0) {
+    NET.boardT = BOARD_DT;
+    netBroadcast({ t: 'b', s: snakes.map(s => [s.id, s.name, SKINS.indexOf(s.skin), Math.round(s.score), s.inf > 0 ? 1 : 0, Math.round(s.x), Math.round(s.y)]) });
+  }
+}
+
+/* ── guest ── */
+async function joinRoom() {
+  if (NET.role) return;
+  const code = codeIn.value.trim().toUpperCase();
+  if (!/^[A-Z0-9]{5}$/.test(code)) { netStatus('Type the 5-letter code your friend sees.', 'bad'); return; }
+  if (!(await netReady()) || NET.role) return;
+  const peer = new Peer({ debug: 0 });
+  Object.assign(NET, { role: 'guest', peer, code, conn: null, open: false, joined: false });
+  netStatus('Connecting to ' + code + '…'); netUI();
+  peer.on('open', () => {
+    if (NET.peer !== peer) return;
+    const c = peer.connect(ID_PREFIX + code, { reliable: true });
+    NET.conn = c;
+    c.on('open', () => { if (NET.conn === c) NET.open = true; });
+    c.on('data', m => { if (NET.conn === c) onHostMsg(m); });
+    c.on('close', () => { if (NET.conn === c) netLeave(NET.joined ? 'Lost the connection to the host.' : "Couldn't join that room."); });
+    c.on('error', () => { if (NET.conn === c) netLeave('Lost the connection to the host.'); });
+  });
+  peer.on('error', e => { if (NET.peer === peer) netLeave(e.type === 'peer-unavailable' ? 'No room found with code ' + code + '.' : peerError(e)); });
+  setTimeout(() => { if (NET.peer === peer && !NET.joined) netLeave("Couldn't reach that room. Check the code and try again."); }, 15000);
+}
+function enterGuest() {
+  // swap our own arena for the host's: everything we draw now comes from them
+  NET.joined = true;
+  if (playing) { playing = false; menuEl.classList.remove('hidden'); }
+  if (fallen) fallen = null;
+  player = null; deathTimer = -1; lastStats = null;
+  snakes = []; foods = []; respawns = []; worldKeys = []; keyTimers = []; fx.length = 0;
+  NET.map.clear(); NET.fmap.clear(); NET.eaten.clear(); NET.board = [];
+  savedRun = null; contBtn.style.display = 'none'; reviveBtn.style.display = 'none'; resultEl.style.display = 'none';
+  playBtn.classList.remove('alt'); playBtn.textContent = 'Play online';
+  netStatus('Connected! ✓ Press Play online to jump into ' + NET.code + '.', 'ok');
+  netUI();
+}
+function onHostMsg(m) {
+  if (!m || typeof m !== 'object') return;
+  switch (m.t) {
+    case 'welcome': if (!NET.joined) enterGuest(); break;
+    case 'full': netLeave('That room is full (8 players).'); break;
+    case 'bye': netLeave('The host closed the room.'); break;
+    case 's': if (NET.joined && Array.isArray(m.s)) applySnap(m); break;
+    case 'f': if (NET.joined && Array.isArray(m.f)) applyFood(m); break;
+    case 'b': if (NET.joined && Array.isArray(m.s)) applyBoard(m.s); break;
+    case 'toast': if (NET.joined) safeToast(m.h); break;
+    case 'fx': fx.push({ x: num(m.x), y: num(m.y), t: 0, r: clamp(num(m.r), 10, 1000), c: /^[\d,]{5,15}$/.test(m.c) ? m.c : '255,255,255' }); break;
+    case 'ang': input.ang = wrap(num(m.a)); input.keys = false; break;
+    case 'dead': guestDeath(m); break;
+  }
+}
+function applySnap(m) {
+  const list = [], seen = new Set();
+  for (const a of m.s.slice(0, 80)) {
+    if (!Array.isArray(a) || a.length < 17) continue;
+    const id = a[0] | 0, sk = SKINS[a[2]] || SKINS[0];
+    let s = NET.map.get(id);
+    if (!s) { s = new Snake('', sk, 0, 0, 10, false); s.id = id; NET.map.set(id, s); }
+    s.name = String(a[1]).slice(0, 14); s.skin = sk; s.score = Math.max(0, num(a[3]));
+    s.ang = num(a[4]); s.tAng = num(a[5]);
+    const fl = a[6] | 0; s.boosting = !!(fl & 1); s.boost = !!(fl & 2); s.bot = !(fl & 4);
+    s.ghost = num(a[7]); s.shield = num(a[8]); s.frozen = num(a[9]); s.magnet = num(a[10]); s.turbo = num(a[11]); s.inf = a[12] ? 1 : 0;
+    const n = Math.min(700, (a.length - 13) >> 1), xs = new Array(n), ys = new Array(n);
+    let x = num(a[13]), y = num(a[14]);
+    for (let i = 0; i < n; i++) {
+      if (i) { x += num(a[13 + i * 2]); y += num(a[14 + i * 2]); }
+      xs[i] = x; ys[i] = y;
+    }
+    s.xs = xs; s.ys = ys;
+    s.r = radiusFor(s.score); s.seg = s.r * 0.5;
+    s.alive = true; list.push(s); seen.add(id);
+  }
+  for (const [id, s] of NET.map) if (!seen.has(id) && s !== player) { s.alive = false; NET.map.delete(id); }
+  snakes = list;
+  const me = m.me && NET.map.get(m.me.id | 0);
+  if (me && playing && deathTimer < 0) {
+    player = me;
+    me.keys = Math.max(0, m.me.k | 0); me.kills = m.me.kl | 0; me.inf = num(m.me.i);
+    me.dblCd = num(m.me.d); me.frzCd = num(m.me.f); me.tpCd = num(m.me.p);
+    me.tAng = input.ang;                 // turn the way you're steering right away; the host catches up
+  }
+}
+function applyFood(m) {
+  const a = m.f, seen = new Set(), now = time;
+  for (const [id, t] of NET.eaten) if (now - t > 1.5) NET.eaten.delete(id);
+  for (let i = 0; i + 4 < a.length && i < 25000; i += 5) {
+    const id = a[i] | 0;
+    if (NET.eaten.has(id)) continue;
+    seen.add(id);
+    let f = NET.fmap.get(id);
+    if (!f) {
+      f = { id, x: 0, y: 0, v: 1, hue: 0, r: 5, ph: rand(0, TAU), age: 0, eater: null, et: 0, dead: false };
+      NET.fmap.set(id, f); foods.push(f);
+    }
+    if (!f.eater) { f.x = num(a[i + 1]); f.y = num(a[i + 2]); }
+    f.hue = clamp(a[i + 3] | 0, 0, FH - 1); f.r = clamp(num(a[i + 4]) / 10, 2, 15);
+  }
+  for (const f of foods) if (!f.eater && !seen.has(f.id)) f.dead = true;
+  foods = foods.filter(f => { if (f.dead) NET.fmap.delete(f.id); return !f.dead; });
+  if (Array.isArray(m.k)) {
+    worldKeys = [];
+    for (let i = 0; i + 1 < m.k.length && i < 400; i += 2) {
+      const x = num(m.k[i]), y = num(m.k[i + 1]);
+      worldKeys.push({ x, y, ph: (x * 0.37 + y * 0.71) % TAU, age: 1 });
+    }
+  }
+}
+function applyBoard(list) {
+  NET.board = list.slice(0, 80).filter(Array.isArray).map(a => ({ id: a[0] | 0, name: String(a[1]).slice(0, 14), skin: clamp(a[2] | 0, 0, SKINS.length - 1),
+    score: Math.max(0, num(a[3])), inf: a[4] ? 1 : 0, x: num(a[5]), y: num(a[6]) }));
+}
+function guestDeath(m) {
+  if (!player) player = new Snake(nickEl.value.trim() || 'You', SKINS[selSkin], cam.x, cam.y, 10, false);
+  const s = player;
+  s.alive = false; s.keys = Math.max(0, m.k | 0); s.inf = Math.max(0, num(m.i)); s.kills = m.kl | 0;
+  snakes = snakes.filter(o => o !== s); NET.map.delete(s.id);
+  const sc = m.sc | 0;
+  lastStats = { score: sc, kills: s.kills, by: m.by ? String(m.by).slice(0, 14) : null, record: sc > best };
+  if (sc > best) { best = sc; try { localStorage.setItem('sa_best', best); } catch (e) {} }
+  bank = s.keys; bankInf = s.inf;
+  try { localStorage.setItem('sa_keys', bank); localStorage.setItem('sa_inf', bankInf); } catch (e) {}
+  deathTimer = 1.3;
+}
+// the guest's own frame: glide everything forward until the next snapshot lands
+function guestUpdate(dt) {
+  time += dt;
+  for (const s of snakes) s.update(dt);
+  let anyDead = false;
+  for (const f of foods) {
+    f.age += dt;
+    if (!f.eater) {
+      for (const s of snakes) {
+        const reach = s.magnet > 0 ? MAG_R : s.r + 30, dx = f.x - s.x, dy = f.y - s.y;
+        if (dx * dx + dy * dy < reach * reach) { f.eater = s; break; }
+      }
+      continue;
+    }
+    const e = f.eater;
+    f.et += dt;
+    const mag = e.magnet > 0, k = Math.min(1, dt * (mag ? 7 : 16));
+    f.x += (e.x - f.x) * k; f.y += (e.y - f.y) * k;
+    if (!e.alive || f.et > (mag ? 1.2 : 0.28) || Math.hypot(e.x - f.x, e.y - f.y) < e.r * 0.7) { f.dead = true; anyDead = true; NET.eaten.set(f.id, time); }
+  }
+  if (anyDead) foods = foods.filter(f => { if (f.dead) NET.fmap.delete(f.id); return !f.dead; });
+  for (const kx of worldKeys) kx.age += dt;
+  for (let i = fx.length - 1; i >= 0; i--) { fx[i].t += dt; if (fx[i].t > 0.7) fx.splice(i, 1); }
+}
+function guestTick(dt) {
+  if (!NET.joined) return;
+  if (input.keys) {
+    const kx = (input.right ? 1 : 0) - (input.left ? 1 : 0), ky = (input.down ? 1 : 0) - (input.up ? 1 : 0);
+    if (kx || ky) input.ang = Math.atan2(ky, kx);
+  }
+  const b = input.mouseBoost || input.keyBoost || input.btnBoost;
+  if (player && player.alive) { player.tAng = input.ang; player.boost = b; }
+  NET.inT -= dt;
+  if (NET.inT > 0) return;
+  NET.inT = SNAP_DT;
+  const z = cam.zoom || 1;
+  netSend({ t: 'i', a: r2(input.ang), b: b ? 1 : 0, x: Math.round(cam.x), y: Math.round(cam.y), w: Math.round(vw / 2 / z), h: Math.round(vh / 2 / z) });
+}
+function netTick(dt) { if (NET.role === 'host') hostTick(dt); else guestTick(dt); }
+
+$('hostBtn').addEventListener('click', () => hostRoom());
+$('joinBtn').addEventListener('click', () => joinRoom());
+$('leaveBtn').addEventListener('click', () => netLeave());
+$('copyBtn').addEventListener('click', () => {
+  if (navigator.clipboard) navigator.clipboard.writeText(NET.code).then(() => { $('copyBtn').textContent = 'Copied!'; setTimeout(() => $('copyBtn').textContent = 'Copy', 1200); }).catch(() => {});
+});
+window.addEventListener('beforeunload', () => { if (NET.role === 'host') netBroadcast({ t: 'bye' }); else netSend({ t: 'bye' }); });
+
 /* ───────────── main loop ───────────── */
-for (let i = 0; i < FOOD_TARGET; i++) spawnNaturalFood();
-for (const f of foods) f.age = 1;
-for (let i = 0; i < BOT_COUNT; i++) spawnBot(true);
-for (let i = 0; i < KEY_COUNT; i++) spawnKey();
+function initWorld() {
+  snakes = []; foods = []; respawns = []; worldKeys = []; keyTimers = []; fx.length = 0;
+  for (let i = 0; i < FOOD_TARGET; i++) spawnNaturalFood();
+  for (const f of foods) f.age = 1;
+  for (let i = 0; i < BOT_COUNT; i++) spawnBot(true);
+  for (let i = 0; i < KEY_COUNT; i++) spawnKey();
+}
+initWorld();
 
 let last = performance.now(), hudT = 0, frame = 0, spectate = null, saveT = 0;
 function tick(now) {
@@ -1180,7 +1680,9 @@ function tick(now) {
   let dt = (now - last) / 1000; last = now;
   if (dt > 0.25) dt = 0.016;            // tab was in the background
   dt = Math.min(dt, 1 / 30);
-  if (!paused) update(dt);
+  if (isGuest() && NET.joined) guestUpdate(dt);
+  else if (!paused) update(dt);
+  if (NET.role) netTick(dt);
 
   // camera
   let targetZoom;
@@ -1191,8 +1693,13 @@ function tick(now) {
   } else if (!playing && fallen && hasRevive(fallen)) {
     targetZoom = cam.zoom;            // hold the camera on the spot you can revive at
   } else if (!playing) {
-    if (!spectate || !spectate.alive || frame % 900 === 0) spectate = snakes.reduce((a, b) => (!a || b.score > a.score) ? b : a, null);
-    if (spectate) { cam.x += (spectate.x - cam.x) * Math.min(1, dt * 2.5); cam.y += (spectate.y - cam.y) * Math.min(1, dt * 2.5); }
+    let tgt;
+    if (isGuest()) tgt = NET.board.reduce((a, b) => (!a || b.score > a.score) ? b : a, null);   // leader, from the host's list
+    else {
+      if (!spectate || !spectate.alive || frame % 900 === 0) spectate = snakes.reduce((a, b) => (!a || b.score > a.score) ? b : a, null);
+      tgt = spectate;
+    }
+    if (tgt) { cam.x += (tgt.x - cam.x) * Math.min(1, dt * 2.5); cam.y += (tgt.y - cam.y) * Math.min(1, dt * 2.5); }
     targetZoom = fit * 0.8;
   } else targetZoom = cam.zoom;
   cam.zoom += (targetZoom - cam.zoom) * Math.min(1, dt * 3);
