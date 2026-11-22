@@ -1,0 +1,38 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 200">
+  <defs>
+    <radialGradient id="bg" cx="50%" cy="45%" r="75%">
+      <stop offset="0" stop-color="#3a1466"/><stop offset=".6" stop-color="#1a0c30"/><stop offset="1" stop-color="#0c0518"/>
+    </radialGradient>
+    <linearGradient id="title" x1="0" x2="1">
+      <stop offset="0" stop-color="#ff3d9a"/><stop offset=".5" stop-color="#ffd23d"/><stop offset="1" stop-color="#3de0ff"/>
+    </linearGradient>
+    <radialGradient id="shine" cx="35%" cy="30%" r="40%">
+      <stop offset="0" stop-color="#fff" stop-opacity=".6"/><stop offset="1" stop-color="#fff" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+  <rect width="320" height="200" fill="url(#bg)"/>
+  <!-- confetti and emoji chaos -->
+  <g>
+    <rect x="30" y="70" width="8" height="4" fill="#ff3d9a" transform="rotate(30 34 72)"/>
+    <rect x="270" y="80" width="8" height="4" fill="#3de0ff" transform="rotate(-20 274 82)"/>
+    <rect x="60" y="160" width="8" height="4" fill="#ffd23d" transform="rotate(60 64 162)"/>
+    <rect x="250" y="165" width="8" height="4" fill="#62ffa6" transform="rotate(15 254 167)"/>
+    <rect x="95" y="60" width="6" height="3" fill="#9b5cff"/><rect x="225" y="58" width="6" height="3" fill="#ff3d9a"/>
+  </g>
+  <g font-size="26">
+    <text x="22" y="118">🎉</text><text x="268" y="128">🌀</text><text x="50" y="190">🦆</text>
+    <text x="244" y="196">🔔</text><text x="82" y="110">✨</text><text x="216" y="104">💥</text>
+  </g>
+  <!-- big button -->
+  <circle cx="160" cy="136" r="48" fill="#6d1a52"/>
+  <g>
+    <circle cx="160" cy="128" r="48" fill="#ff3d9a"/>
+    <path d="M160 128 L160 80 A48 48 0 0 1 201.6 104 Z" fill="#ffd23d"/>
+    <path d="M160 128 L201.6 104 A48 48 0 0 1 201.6 152 Z" fill="#3de0ff"/>
+    <path d="M160 128 L201.6 152 A48 48 0 0 1 160 176 Z" fill="#9b5cff"/>
+    <circle cx="160" cy="128" r="48" fill="url(#shine)"/>
+  </g>
+  <text x="160" y="136" text-anchor="middle" font-family="Arial Black, Impact, Arial" font-weight="900" font-size="20" fill="#fff" stroke="#0007" stroke-width="3" paint-order="stroke">PRESS</text>
+  <text x="160" y="44" text-anchor="middle" font-family="Arial Black, Impact, Arial" font-weight="900" font-size="30" fill="url(#title)" stroke="#0c0518" stroke-width="4" paint-order="stroke">DOPAMINE ENGINE</text>
+  <text x="160" y="62" text-anchor="middle" font-family="Menlo, monospace" font-weight="700" font-size="10" letter-spacing="2" fill="#a996ca">ENDLESS OVERSTIMULATOR</text>
+</svg>

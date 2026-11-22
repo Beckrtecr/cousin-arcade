@@ -36,4 +36,11 @@ const GAMES = [
     thumbnail: "games/serpent-arena/thumb.svg",
     color: "#2fd774",
   },
+  {
+    title: "Dopamine Engine",
+    maker: "Cousin Crew",
+    folder: "games/dopamine-engine",
+    thumbnail: "games/dopamine-engine/thumb.svg",
+    color: "#ff3d9a",
+  },
 ];
