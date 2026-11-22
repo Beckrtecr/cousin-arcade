@@ -50,4 +50,11 @@ const GAMES = [
     thumbnail: "games/bobblehead-ball/thumb.svg",
     color: "#44a847",
   },
+  {
+    title: "Tank Battle",
+    maker: "Cousin Crew",
+    folder: "games/tank-battle",
+    thumbnail: "games/tank-battle/thumb.svg",
+    color: "#8b5cf6",
+  },
 ];
