@@ -59,7 +59,7 @@ html.mobile-mode #gunui { top:38px; }
 <div id="instructions">WASD/Arrows = Fly    Mouse = Aim & Shoot    4 Guns = GOD MODE</div>
 <canvas id="c"></canvas>
 
-<script src="../../mobile-mode.js"></script>
+<script>document.write('<script src="../../mobile-mode.js?v=' + Date.now() + '"><\/script>');</script>
 <script>
 const canvas = document.getElementById('c');
 const ctx = canvas.getContext('2d');
@@ -344,6 +344,8 @@ function loop() {
 // Left thumb: joystick to fly. Right thumb: touch anywhere to aim there and keep firing.
 let touchAiming = false;
 if (window.CousinMode && CousinMode.isMobile()) {
+  // mobile controls must never break the game itself
+  try {
     touchAiming = true;
     document.getElementById('instructions').textContent = 'Stick = Fly    Touch the sky = Aim & Shoot';
     startScreen.querySelector('span').textContent = 'Tap to play';
@@ -370,6 +372,7 @@ if (window.CousinMode && CousinMode.isMobile()) {
     };
     addEventListener('pointerup', stopAim);
     addEventListener('pointercancel', stopAim);
+} catch (err) { console.error("mobile controls:", err); }
 }
 
 addEventListener('resize', () => {

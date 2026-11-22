@@ -294,7 +294,7 @@ body.cc,body.cc *{cursor:none!important}
 <canvas id="trail"></canvas>
 
 <!-- Mobile mode: this game is all taps already, so it just loads the shared helper -->
-<script src="../../mobile-mode.js"></script>
+<script>document.write('<script src="../../mobile-mode.js?v=' + Date.now() + '"><\/script>');</script>
 <script>
 (() => {
 'use strict';

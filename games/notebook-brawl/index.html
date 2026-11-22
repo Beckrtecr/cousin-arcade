@@ -368,7 +368,7 @@ select{font-family:var(--body);font-size:16px;padding:3px 6px;border:2px solid v
 </div>
 <div class="toast" id="toast" hidden></div>
 
-<script src="../../mobile-mode.js"></script>
+<script>document.write('<script src="../../mobile-mode.js?v=' + Date.now() + '"><\/script>');</script>
 <script>
 (()=>{
 const $=id=>document.getElementById(id);
@@ -1771,7 +1771,9 @@ let helpOpen=true;try{helpOpen=localStorage.getItem('nb_help')!=='0';}catch(e){}
 syncOpts();setScreen('menu');
 if(document.fonts&&document.fonts.load)document.fonts.load(`40px ${FONT}`).then(()=>{if(screen==='menu')buildMapList();},()=>{});
 /* ================= mobile mode: on-screen controls for Red ================= */
-if(window.CousinMode&&CousinMode.isMobile()){
+if(window.CousinMode&&CousinMode.isMobile()) {
+  // mobile controls must never break the game itself
+  try {
   // one set of controls per player on this screen (Red, Blue, Green)
   const pad=(c,col,name)=>({name,color:col,stick:{left:CTRL[c].left[0],right:CTRL[c].right[0],down:CTRL[c].down[0]},
     buttons:[{label:'JUMP',code:CTRL[c].up[0],big:true},{label:'HIT',code:CTRL[c].hit[0],big:true},{label:'KICK',code:CTRL[c].kick[0]},{label:'★',code:CTRL[c].sp[0]}]});
@@ -1782,6 +1784,7 @@ if(window.CousinMode&&CousinMode.isMobile()){
   // keyboard help is not useful on a phone: fold it away (without changing the saved PC setting)
   $('help').hidden=true;document.querySelector('.app').classList.add('compact');
   $('helpToggle').setAttribute('aria-expanded','false');$('helpToggle').querySelector('span').textContent='Show controls';
+} catch (err) { console.error("mobile controls:", err); }
 }
 requestAnimationFrame(frame);
 })();

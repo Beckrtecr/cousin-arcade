@@ -231,7 +231,7 @@
     <iframe id="frame" allow="fullscreen; autoplay; gamepad"></iframe>
   </div>
 
-<script src="mobile-mode.js"></script>
+<script>document.write('<script src="mobile-mode.js?v=' + Date.now() + '"><\/script>');</script>
 <!-- Load the game list fresh every time, so newly added games show up right away -->
 <script>document.write('<script src="games-list.js?v=' + Date.now() + '"><\/script>');</script>
 <script>
