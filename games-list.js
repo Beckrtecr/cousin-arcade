@@ -43,4 +43,11 @@ const GAMES = [
     thumbnail: "games/dopamine-engine/thumb.svg",
     color: "#ff3d9a",
   },
+  {
+    title: "Bobblehead Ball",
+    maker: "Cousin Crew",
+    folder: "games/bobblehead-ball",
+    thumbnail: "games/bobblehead-ball/thumb.svg",
+    color: "#44a847",
+  },
 ];
