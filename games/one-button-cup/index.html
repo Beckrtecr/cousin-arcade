@@ -117,7 +117,7 @@
   </div>
 </div>
 
-<script src="../../mobile-mode.js"></script>
+<script>document.write('<script src="../../mobile-mode.js?v=' + Date.now() + '"><\/script>');</script>
 <script>
 'use strict';
 /* ONE BUTTON CUP — four players, one key each, two matches at once. */
@@ -2749,6 +2749,8 @@ function boot() {
   }
   // mobile mode: a big tap button in a corner for each human player, plus a quit button
   if (window.CousinMode && CousinMode.isMobile()) {
+  // mobile controls must never break the game itself
+  try {
     const pad = document.createElement('div'); pad.id = 'tapPad'; pad.hidden = true;
     const spots = ['left:12px;top:12px', 'right:12px;top:12px', 'left:12px;bottom:12px', 'right:12px;bottom:12px'];
     const tb = PLAYERS.map((P, i) => {
@@ -2763,7 +2765,15 @@ function boot() {
     quit.addEventListener('pointerdown', (e) => { e.preventDefault(); toLobby(); });
     pad.appendChild(quit);
     document.body.appendChild(pad);
-    document.querySelector('.tip').textContent = 'Tap a player to join. Empty seats are played by the computer. In a game, tap your colour\'s button in the corner.';
+    document.querySelector('.tip').textContent = 'Tap a player to join or leave. Empty seats are played by the computer. In a game, tap your colour\'s button in the corner (playing alone? tap anywhere).';
+    // on a phone, start with RED joined so there's always someone to control
+    joined[0] = true;
+    // with only one person playing, a tap anywhere on the game counts as their button
+    cv.addEventListener('pointerdown', (e) => {
+      if (state !== 'play') return;
+      const humans = seats().filter((i) => joined[i]);
+      if (humans.length === 1) { e.preventDefault(); press(humans[0]); }
+    });
     const origRefresh = refresh;
     refresh = () => { origRefresh(); [...cards.children].forEach((el, i) => { if (!joined[i]) el.querySelector('.st').textContent = 'CPU — tap to join'; }); };
     (function loop() {
@@ -2772,6 +2782,7 @@ function boot() {
       if (on) { const S = seats(); tb.forEach((b, i) => (b.hidden = !(joined[i] && S.includes(i)))); }
       requestAnimationFrame(loop);
     })();
+  } catch (err) { console.error("mobile controls:", err); }
   }
 
   refresh(); show('lobby'); requestAnimationFrame(frame);

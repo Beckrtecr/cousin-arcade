@@ -159,7 +159,7 @@
     <button class="go" id="again">REMATCH</button><button class="go alt" id="toMenu">MENU</button></div>
 </div>
 
-<script src="../../mobile-mode.js"></script>
+<script>document.write('<script src="../../mobile-mode.js?v=' + Date.now() + '"><\/script>');</script>
 <script>
 "use strict";
 // =====================================================================
@@ -1523,6 +1523,8 @@ if (document.fonts && document.fonts.ready) document.fonts.ready.then(() => refr
 requestAnimationFrame(loop);
 // mobile mode, 2 players on one screen: each player gets their own joystick and buttons
 if (window.CousinMode && CousinMode.isMobile()) {
+  // mobile controls must never break the game itself
+  try {
   const pad = (side, name, color) => ({ name, color,
     stick: { left: BIND[side].left[0], right: BIND[side].right[0] },
     buttons: [{ label: "▲", code: BIND[side].jump[0] }, { label: "SHOT", code: BIND[side].roll[0] },
@@ -1532,6 +1534,7 @@ if (window.CousinMode && CousinMode.isMobile()) {
     count: () => 2,
     visible: () => opts.mode === "2p" && state === "play",
   });
+} catch (err) { console.error("mobile controls:", err); }
 }
 </script>
 </body>
