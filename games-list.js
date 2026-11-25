@@ -64,4 +64,11 @@ const GAMES = [
     thumbnail: "games/sock-gobbler/thumb.svg",
     color: "#9b59e6",
   },
+  {
+    title: "Picnic Panic",
+    maker: "Cousin Crew",
+    folder: "games/picnic-panic",
+    thumbnail: "games/picnic-panic/thumb.svg",
+    color: "#d6333a",
+  },
 ];
