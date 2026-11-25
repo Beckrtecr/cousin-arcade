@@ -1,0 +1,913 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<title>Picnic Panic — Cousin Arcade</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body {
+    width: 100%; height: 100%; overflow: hidden;
+    font-family: "Arial Rounded MT Bold", "Trebuchet MS", "Segoe UI", system-ui, sans-serif;
+    color: #3d2614; -webkit-tap-highlight-color: transparent; overscroll-behavior: none;
+    touch-action: none; -webkit-user-select: none; user-select: none; -webkit-touch-callout: none;
+  }
+  body { background: #4d8f3a; display: flex; flex-direction: column; }
+  button { font-family: inherit; cursor: pointer; touch-action: manipulation; }
+
+  /* ---------- top bar ---------- */
+  #top {
+    flex: 0 0 auto; display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+    padding: calc(6px + env(safe-area-inset-top, 0px)) 10px 6px; background: #7a4a24; color: #fff6e0;
+    border-bottom: 4px solid #5a3417; font-weight: bold;
+  }
+  .stat { display: flex; align-items: center; gap: 5px; background: rgba(0,0,0,.22); padding: 4px 10px; border-radius: 999px; font-size: 16px; white-space: nowrap; }
+  .stat .ico { font-size: 17px; }
+  #top .spacer { flex: 1; }
+  .tbtn {
+    border: 3px solid #fff6e0; border-radius: 12px; background: #ffb52e; color: #3d2614; font-weight: bold;
+    font-size: 15px; padding: 5px 12px; box-shadow: 0 3px 0 rgba(0,0,0,.3); white-space: nowrap;
+  }
+  .tbtn:active { transform: translateY(2px); box-shadow: 0 1px 0 rgba(0,0,0,.3); }
+  .tbtn.go { background: #5fd35f; }
+  .tbtn.go:disabled { background: #b9b0a0; color: #6e6455; }
+  .tbtn.small { padding: 5px 9px; min-width: 40px; }
+
+  /* ---------- play area ---------- */
+  #stage { flex: 1 1 auto; position: relative; min-height: 0; }
+  #cv { position: absolute; display: block; border-radius: 10px; box-shadow: 0 6px 24px rgba(0,0,0,.35); }
+  #toast {
+    position: absolute; left: 50%; top: 14px; transform: translateX(-50%); pointer-events: none;
+    background: rgba(61,38,20,.88); color: #fff6e0; padding: 7px 16px; border-radius: 999px; font-weight: bold;
+    font-size: 16px; opacity: 0; transition: opacity .25s; white-space: nowrap; z-index: 3;
+  }
+  #toast.show { opacity: 1; }
+
+  /* ---------- bottom bar: the shop, or the picked tower ---------- */
+  #bar {
+    flex: 0 0 auto; background: #7a4a24; border-top: 4px solid #5a3417;
+    padding: 6px 8px calc(6px + env(safe-area-inset-bottom, 0px)); min-height: 84px;
+  }
+  #shop { display: flex; gap: 6px; justify-content: center; overflow-x: auto; }
+  .tw {
+    flex: 0 0 auto; width: 84px; border: 3px solid #e8d3ad; border-radius: 14px; background: #fff6e0; padding: 3px 2px 4px;
+    display: flex; flex-direction: column; align-items: center; color: #3d2614; position: relative;
+  }
+  .tw canvas { width: 40px; height: 40px; }
+  .tw .nm { font-size: 11px; font-weight: bold; line-height: 1.1; }
+  .tw .cost { font-size: 13px; font-weight: bold; color: #b05a00; }
+  .tw .key { position: absolute; top: 2px; left: 5px; font-size: 10px; color: #a08a6a; }
+  .tw.sel { border-color: #ffb52e; background: #ffe7a8; box-shadow: 0 0 0 3px #ffb52e; }
+  .tw.poor { opacity: .5; }
+  #info { display: none; align-items: center; gap: 10px; justify-content: center; flex-wrap: wrap; color: #fff6e0; }
+  #info .txt { min-width: 160px; }
+  #info .ttl { font-size: 17px; font-weight: bold; }
+  #info .sub { font-size: 13px; opacity: .9; }
+  #bar.picked #shop { display: none; }
+  #bar.picked #info { display: flex; }
+
+  /* ---------- big screens (start, win, lose) ---------- */
+  .overlay {
+    position: fixed; inset: 0; z-index: 10; display: flex; align-items: center; justify-content: center;
+    background: rgba(40, 25, 10, .55); padding: 12px; touch-action: pan-y;
+  }
+  .overlay[hidden] { display: none; }
+  .card {
+    background: #fff6e0; border: 5px solid #3d2614; border-radius: 24px; padding: 16px 20px; width: min(680px, 100%);
+    max-height: 100%; overflow: auto; text-align: center; box-shadow: 0 10px 0 rgba(0,0,0,.25); -webkit-overflow-scrolling: touch;
+  }
+  h1 { font-size: clamp(30px, 7vw, 46px); color: #d6333a; text-shadow: 3px 3px 0 #ffd35c; line-height: 1.05; }
+  h1 small { display: block; font-size: .42em; color: #3d2614; text-shadow: none; margin-top: 4px; }
+  h2 { font-size: 28px; color: #d6333a; margin-bottom: 6px; }
+  .maps { display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; margin: 12px 0 8px; }
+  .map {
+    width: 190px; border: 4px solid #3d2614; border-radius: 16px; background: #fff; padding: 6px; color: #3d2614;
+    box-shadow: 0 4px 0 rgba(0,0,0,.25);
+  }
+  .map:active { transform: translateY(2px); }
+  .map canvas { width: 100%; border-radius: 8px; display: block; }
+  .map .mn { font-weight: bold; font-size: 16px; margin-top: 4px; }
+  .map .md { font-size: 12px; color: #7a5a3a; }
+  .how { background: #fbe9c6; border-radius: 14px; padding: 8px 12px; font-size: 14px; line-height: 1.5; text-align: left; margin-top: 6px; }
+  .how b { color: #d6333a; }
+  kbd { display: inline-block; padding: 0 5px; border: 2px solid #3d2614; border-bottom-width: 3px; border-radius: 6px; background: #fff; font-size: 12px; }
+  .row { display: flex; gap: 10px; justify-content: center; margin-top: 12px; flex-wrap: wrap; }
+
+  @media (max-width: 560px), (max-height: 480px) {
+    .stat { font-size: 14px; padding: 3px 8px; }
+    .tbtn { font-size: 13px; padding: 4px 9px; }
+    .tw { width: 66px; }
+    .tw canvas { width: 32px; height: 32px; }
+    .tw .nm { font-size: 10px; }
+    #bar { min-height: 72px; }
+  }
+</style>
+</head>
+<body>
+<div id="top">
+  <div class="stat" title="Crumbs (money)"><span class="ico">🍪</span><span id="crumbs">0</span></div>
+  <div class="stat" title="Cake slices left"><span class="ico">🍰</span><span id="lives">0</span></div>
+  <div class="stat" title="Wave"><span class="ico">🐜</span><span id="wave">0</span></div>
+  <div class="spacer"></div>
+  <button class="tbtn small" id="muteBtn" title="Sound on/off (M)">🔊</button>
+  <button class="tbtn small" id="pauseBtn" title="Pause (P)">⏸</button>
+  <button class="tbtn small" id="speedBtn" title="Game speed (F)">1×</button>
+  <button class="tbtn go" id="goBtn" title="Send the next wave (Space)">Send bugs ▶</button>
+</div>
+<div id="stage"><canvas id="cv"></canvas><div id="toast"></div></div>
+<div id="bar">
+  <div id="shop"></div>
+  <div id="info">
+    <div class="txt"><div class="ttl" id="iName"></div><div class="sub" id="iStats"></div></div>
+    <button class="tbtn go" id="upBtn">Upgrade</button>
+    <button class="tbtn" id="sellBtn">Sell</button>
+    <button class="tbtn small" id="closeBtn" title="Close (Esc)">✕</button>
+  </div>
+</div>
+
+<div class="overlay" id="startScreen">
+  <div class="card">
+    <h1>Picnic Panic<small>Defend the cake from the bug parade!</small></h1>
+    <div class="maps" id="maps"></div>
+    <div class="how">
+      <b>How to play:</b> bugs march along the dirt trail toward your cake. Every bug that reaches it eats a slice.
+      Pick a defender from the bottom bar, then click or tap an empty grass spot to put it there.
+      Click a defender to upgrade or sell it. Squashed bugs drop <b>crumbs</b> to spend.
+      Survive all <b>20 waves</b> (watch out for the Queen Ant!) to win.<br>
+      <b>Keys:</b> <kbd>1</kbd>–<kbd>5</kbd> pick a defender, <kbd>Space</kbd> send the next wave,
+      <kbd>U</kbd> upgrade, <kbd>S</kbd> sell, <kbd>F</kbd> speed, <kbd>P</kbd> pause, <kbd>Esc</kbd> cancel.
+    </div>
+  </div>
+</div>
+
+<div class="overlay" id="endScreen" hidden>
+  <div class="card">
+    <h2 id="endTitle"></h2>
+    <p id="endText" style="font-size:17px;line-height:1.5"></p>
+    <div class="row">
+      <button class="tbtn go" id="againBtn">Play again</button>
+      <button class="tbtn" id="menuBtn">Pick a map</button>
+    </div>
+  </div>
+</div>
+
+<!-- The arcade's shared PC/mobile switch helper. Always fetch the newest copy; the game works without it. -->
+<script>try { document.write('<script src="../../mobile-mode.js?v=' + Date.now() + '"><\/script>'); } catch (e) {}</script>
+<script>
+"use strict";
+/* =====================================================================
+   PICNIC PANIC: a tower defense game for the Cousin Arcade.
+   Bugs walk a trail toward the cake. Kitchen gadgets squash them.
+   ===================================================================== */
+const COLS = 16, ROWS = 10, MAX_WAVE = 20;
+const $ = id => document.getElementById(id);
+const store = {   // localStorage can throw (private mode), so every use is wrapped
+  get(k, d) { try { const v = localStorage.getItem(k); return v === null ? d : JSON.parse(v); } catch (e) { return d; } },
+  set(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) {} },
+};
+function isMobileMode() {
+  try { if (window.CousinMode) return CousinMode.isMobile(); } catch (e) {}
+  try { return matchMedia("(pointer: coarse)").matches; } catch (e) { return false; }
+}
+
+/* ---------- maps: trail corners in grid squares ---------- */
+const MAPS = [
+  { name: "Backyard Blanket", desc: "Long winding trail. Good for starters.", crumbs: 200,
+    grass: "#6fbf4a", grass2: "#64b142",
+    path: [[-1, 2], [3, 2], [3, 7], [8, 7], [8, 2], [12, 2], [12, 7], [15, 7]] },
+  { name: "Park Bench", desc: "Lots of turns, faster bugs.", crumbs: 180, speed: 1.08,
+    grass: "#7cc957", grass2: "#70bd4c",
+    path: [[-1, 5], [2, 5], [2, 1], [6, 1], [6, 8], [10, 8], [10, 3], [13, 3], [13, 6], [15, 6]] },
+  { name: "Kitchen Floor", desc: "Short trail and tough bugs. Good luck!", crumbs: 170, speed: 1.12, hp: 1.15, tiles: true,
+    grass: "#f1e2c4", grass2: "#e6d3ae",
+    path: [[-1, 1], [13, 1], [13, 4], [2, 4], [2, 8], [15, 8]] },
+];
+
+/* ---------- defenders ---------- */
+const TOWERS = [
+  { id: "squirt", name: "Squirt Bottle", cost: 50, range: 2.6, rate: 2.2, dmg: 9, color: "#4fb3ff",
+    desc: "Fast water shots" },
+  { id: "pepper", name: "Pepper Shaker", cost: 85, range: 2.3, rate: 0.75, dmg: 16, splash: 0.95, color: "#e8502f",
+    desc: "Sneezy splash damage" },
+  { id: "honey", name: "Honey Pot", cost: 70, range: 2.1, rate: 1.0, dmg: 4, slow: 0.45, slowTime: 2, color: "#ffb52e",
+    desc: "Sticky! Slows bugs" },
+  { id: "sling", name: "Slingshot", cost: 120, range: 4.6, rate: 0.5, dmg: 62, color: "#9b6b3d",
+    desc: "Long range, big hit" },
+  { id: "zap", name: "Bug Zapper", cost: 150, range: 2.4, rate: 0.7, dmg: 26, chain: 3, pierce: true, color: "#9b5cff",
+    desc: "Zaps through armor, chains" },
+];
+const LEVEL_COST = [0, 0.8, 1.35];   // upgrade price as a share of the build price
+function towerStats(t) {
+  const b = TOWERS[t.type], L = t.level;
+  return {
+    range: b.range + 0.3 * L, rate: b.rate * Math.pow(1.15, L), dmg: b.dmg * Math.pow(1.55, L),
+    splash: b.splash ? b.splash + 0.15 * L : 0, slow: b.slow ? Math.min(0.7, b.slow + 0.1 * L) : 0,
+    chain: b.chain ? b.chain + L : 0,
+  };
+}
+
+/* ---------- bugs ---------- */
+const BUGS = {
+  ant:     { hp: 30, speed: 1.6, armor: 0, reward: 4, eats: 1, size: 0.26, color: "#3a2a22" },
+  lady:    { hp: 22, speed: 2.7, armor: 0, reward: 5, eats: 1, size: 0.26, color: "#e32b2b" },
+  beetle:  { hp: 110, speed: 0.95, armor: 4, reward: 9, eats: 2, size: 0.34, color: "#2f7a5a" },
+  moth:    { hp: 60, speed: 1.9, armor: 0, reward: 7, eats: 1, size: 0.3, color: "#c9b58d", noSlow: true },
+  queen:   { hp: 1100, speed: 0.6, armor: 3, reward: 150, eats: 8, size: 0.5, color: "#6b2fa0", boss: true },
+};
+function hpScale(w) { return 1 + 0.2 * (w - 1) + 0.013 * (w - 1) * (w - 1); }
+
+function makeWave(w) {
+  const list = [];
+  const n = 7 + Math.floor(w * 1.7);
+  const gap = Math.max(0.32, 0.85 - w * 0.027);
+  for (let i = 0; i < n; i++) {
+    let type = "ant";
+    const r = Math.random();
+    if (w >= 3 && r < 0.25) type = "lady";
+    if (w >= 4 && r >= 0.25 && r < 0.25 + Math.min(0.3, 0.05 * (w - 3))) type = "beetle";
+    if (w >= 6 && r > 0.82) type = "moth";
+    list.push({ type, gap: type === "lady" ? gap * 0.6 : gap });
+  }
+  if (w % 5 === 0) for (let i = 0; i < 3 + w / 5; i++) list.push({ type: "beetle", gap: 0.6 });
+  if (w === 10 || w === 20) list.push({ type: "queen", gap: 1.5 });
+  if (w === 20) for (let i = 0; i < 8; i++) list.push({ type: i % 2 ? "moth" : "beetle", gap: 0.45 });
+  return list;
+}
+
+/* ---------- sound (Web Audio, starts on the first tap) ---------- */
+const Sound = {
+  ac: null, master: null, muted: store.get("picnicPanicMuted", false), last: {},
+  init() {
+    if (this.ac) { if (this.ac.state === "suspended") this.ac.resume(); return; }
+    const AC = window.AudioContext || window.webkitAudioContext; if (!AC) return;
+    try { this.ac = new AC(); this.master = this.ac.createGain(); this.master.gain.value = this.muted ? 0 : 0.4; this.master.connect(this.ac.destination); }
+    catch (e) { this.ac = null; }
+  },
+  setMuted(m) { this.muted = m; store.set("picnicPanicMuted", m); if (this.master) this.master.gain.value = m ? 0 : 0.4; },
+  tone(f1, f2, dur, type = "sine", vol = 0.15, delay = 0) {
+    if (!this.ac || this.muted) return;
+    const t = this.ac.currentTime + delay, o = this.ac.createOscillator(), g = this.ac.createGain();
+    o.type = type; o.frequency.setValueAtTime(f1, t); o.frequency.exponentialRampToValueAtTime(Math.max(20, f2), t + dur);
+    g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(vol, t + 0.01); g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+    o.connect(g); g.connect(this.master); o.start(t); o.stop(t + dur + 0.05);
+  },
+  limited(name, gapSec, fn) {   // so 20 towers firing at once doesn't get too loud
+    if (!this.ac) return; const now = this.ac.currentTime;
+    if (now - (this.last[name] || 0) < gapSec) return; this.last[name] = now; fn();
+  },
+  shoot(id) {
+    if (id === "squirt") this.limited("sq", 0.07, () => this.tone(900, 500, 0.06, "sine", 0.05));
+    else if (id === "pepper") this.limited("pe", 0.12, () => this.tone(300, 150, 0.12, "triangle", 0.08));
+    else if (id === "honey") this.limited("ho", 0.12, () => this.tone(260, 200, 0.14, "sine", 0.07));
+    else if (id === "sling") this.limited("sl", 0.1, () => this.tone(500, 1200, 0.1, "square", 0.04));
+    else if (id === "zap") this.limited("za", 0.1, () => { this.tone(1400, 300, 0.12, "sawtooth", 0.05); this.tone(700, 1800, 0.08, "square", 0.03, 0.03); });
+  },
+  squash() { this.limited("sh", 0.05, () => this.tone(220 + Math.random() * 60, 90, 0.09, "square", 0.06)); },
+  build() { this.tone(520, 520, 0.07, "triangle", 0.12); this.tone(780, 780, 0.09, "triangle", 0.12, 0.07); },
+  upgrade() { [520, 660, 880].forEach((f, i) => this.tone(f, f, 0.1, "triangle", 0.12, i * 0.07)); },
+  sell() { this.tone(700, 350, 0.18, "sine", 0.12); },
+  chomp() { this.limited("ch", 0.15, () => { this.tone(160, 80, 0.15, "square", 0.12); this.tone(130, 70, 0.15, "square", 0.1, 0.12); }); },
+  wave() { [440, 554, 659].forEach((f, i) => this.tone(f, f, 0.12, "square", 0.06, i * 0.09)); },
+  nope() { this.tone(200, 160, 0.15, "square", 0.07); },
+  win() { [523, 659, 784, 1046, 784, 1046].forEach((f, i) => this.tone(f, f, 0.16, "triangle", 0.14, i * 0.13)); },
+  lose() { [392, 330, 262, 196].forEach((f, i) => this.tone(f, f * 0.95, 0.25, "triangle", 0.14, i * 0.2)); },
+};
+
+/* ---------- game state ---------- */
+let G = null;          // the running game
+let mapIndex = 0;
+let picked = -1;       // shop item picked for building (-1 = none)
+let selTower = null;   // tower whose info is shown
+let hoverTile = null;  // tile under the mouse (desktop)
+let speed = 1, paused = false;
+
+function buildPath(map) {
+  const pts = map.path.map(([c, r]) => ({ x: c + 0.5, y: r + 0.5 }));
+  const segs = []; let total = 0;
+  for (let i = 0; i < pts.length - 1; i++) {
+    const a = pts[i], b = pts[i + 1], len = Math.hypot(b.x - a.x, b.y - a.y);
+    segs.push({ a, b, len, start: total }); total += len;
+  }
+  const onPath = new Set();
+  map.path.forEach((p, i) => {
+    if (i === 0) return;
+    const [c1, r1] = map.path[i - 1], [c2, r2] = p;
+    for (let c = Math.min(c1, c2); c <= Math.max(c1, c2); c++)
+      for (let r = Math.min(r1, r2); r <= Math.max(r1, r2); r++) onPath.add(c + "," + r);
+  });
+  return { pts, segs, total, onPath };
+}
+function posAt(path, d) {
+  for (const s of path.segs) {
+    if (d <= s.start + s.len) {
+      const t = (d - s.start) / s.len;
+      return { x: s.a.x + (s.b.x - s.a.x) * t, y: s.a.y + (s.b.y - s.a.y) * t, ang: Math.atan2(s.b.y - s.a.y, s.b.x - s.a.x) };
+    }
+  }
+  const s = path.segs[path.segs.length - 1];
+  return { x: s.b.x, y: s.b.y, ang: Math.atan2(s.b.y - s.a.y, s.b.x - s.a.x) };
+}
+
+// Grass decorations (flowers, a few rocks) that never sit on the trail.
+function makeDecor(map, path) {
+  const d = []; let seed = 7 + mapIndex * 31;
+  const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
+  for (let i = 0; i < 26; i++) {
+    const x = rnd() * COLS, y = rnd() * ROWS;
+    if (path.onPath.has(Math.floor(x) + "," + Math.floor(y))) continue;
+    d.push({ x, y, k: Math.floor(rnd() * 3), c: ["#fff", "#ffd84a", "#ff8fc0", "#c9a4ff"][Math.floor(rnd() * 4)] });
+  }
+  return d;
+}
+
+function newGame(mi) {
+  mapIndex = mi;
+  const map = MAPS[mi], path = buildPath(map);
+  const end = map.path[map.path.length - 1];
+  G = {
+    map, path, decor: makeDecor(map, path), cake: { x: end[0] + 0.5, y: end[1] + 0.5 },
+    crumbs: map.crumbs, lives: 20, wave: 0, towers: [], bugs: [], shots: [], fx: [], bolts: [], floats: [],
+    queue: [], spawnT: 0, waveActive: false, over: false, time: 0, kills: 0,
+  };
+  picked = -1; selTower = null; speed = 1; paused = false;
+  $("startScreen").hidden = true; $("endScreen").hidden = true;
+  updateHud(); refreshBar(); resize();
+  toast(isMobileMode() ? "Tap a defender below, then tap the grass" : "Pick a defender (1-5), then click the grass");
+}
+
+function tileFree(c, r) {
+  if (c < 0 || r < 0 || c >= COLS || r >= ROWS) return false;
+  if (G.path.onPath.has(c + "," + r)) return false;
+  return !G.towers.some(t => t.c === c && t.r === r);
+}
+function towerAt(c, r) { return G.towers.find(t => t.c === c && t.r === r) || null; }
+
+function placeTower(type, c, r) {
+  const b = TOWERS[type];
+  if (!tileFree(c, r)) { Sound.nope(); return false; }
+  if (G.crumbs < b.cost) { Sound.nope(); toast("Not enough crumbs!"); return false; }
+  G.crumbs -= b.cost;
+  G.towers.push({ type, c, r, x: c + 0.5, y: r + 0.5, level: 0, spent: b.cost, cd: 0, ang: -Math.PI / 2, pop: 1 });
+  Sound.build(); updateHud(); refreshBar();
+  if (G.crumbs < b.cost) { picked = -1; refreshBar(); }
+  return true;
+}
+function upgradeCost(t) { return t.level >= 2 ? 0 : Math.round(TOWERS[t.type].cost * LEVEL_COST[t.level + 1]); }
+function upgradeTower(t) {
+  if (!t || t.level >= 2) return;
+  const cost = upgradeCost(t);
+  if (G.crumbs < cost) { Sound.nope(); toast("Not enough crumbs!"); return; }
+  G.crumbs -= cost; t.spent += cost; t.level++; t.pop = 1;
+  Sound.upgrade(); updateHud(); refreshBar();
+}
+function sellValue(t) { return Math.round(t.spent * 0.7); }
+function sellTower(t) {
+  if (!t) return;
+  G.crumbs += sellValue(t); G.towers = G.towers.filter(x => x !== t);
+  floatText(t.x, t.y, "+" + sellValue(t), "#ffd84a");
+  selTower = null; Sound.sell(); updateHud(); refreshBar();
+}
+
+function startWave() {
+  if (!G || G.over || G.waveActive || G.wave >= MAX_WAVE) return;
+  G.wave++; G.queue = makeWave(G.wave); G.spawnT = 0; G.waveActive = true;
+  Sound.wave(); toast(G.wave === 10 || G.wave === 20 ? "👑 The Queen Ant is coming!" : "Wave " + G.wave + "!");
+  updateHud();
+}
+
+function spawnBug(type) {
+  const b = BUGS[type], m = G.map;
+  const hp = b.hp * hpScale(G.wave) * (m.hp || 1);
+  G.bugs.push({ type, hp, maxHp: hp, d: -0.3 - Math.random() * 0.1, speed: b.speed * (m.speed || 1) * (0.95 + Math.random() * 0.1),
+    slowT: 0, slowF: 0, x: 0, y: 0, ang: 0, wob: Math.random() * 6, hit: 0, side: (Math.random() - 0.5) * 0.25 });
+}
+
+function hurt(bug, dmg, pierce) {
+  if (bug.hp <= 0) return;
+  const armor = pierce ? 0 : BUGS[bug.type].armor;
+  bug.hp -= Math.max(dmg * 0.25, dmg - armor);
+  bug.hit = 0.12;
+  if (bug.hp <= 0) {
+    const b = BUGS[bug.type];
+    G.crumbs += b.reward; G.kills++;
+    floatText(bug.x, bug.y, "+" + b.reward, "#ffd84a");
+    for (let i = 0; i < (b.boss ? 30 : 7); i++)
+      G.fx.push({ x: bug.x, y: bug.y, vx: (Math.random() - 0.5) * 3, vy: (Math.random() - 0.5) * 3, life: 0.5, max: 0.5, c: b.color, r: 0.05 + Math.random() * 0.05 });
+    G.fx.push({ splat: true, x: bug.x, y: bug.y, life: 3, max: 3, r: b.size * 1.2, c: b.color });
+    Sound.squash(); updateHud(); refreshBarCosts();
+  }
+}
+function floatText(x, y, text, color) { G.floats.push({ x, y, text, color, life: 0.9 }); }
+
+/* ---------- update ---------- */
+function step(dt) {
+  if (!G || G.over) return;
+  G.time += dt;
+
+  // spawn
+  if (G.waveActive && G.queue.length) {
+    G.spawnT -= dt;
+    if (G.spawnT <= 0) { const n = G.queue.shift(); spawnBug(n.type); G.spawnT = n.gap; }
+  }
+
+  // bugs walk
+  for (const bug of G.bugs) {
+    if (bug.slowT > 0) bug.slowT -= dt;
+    const sp = bug.speed * (bug.slowT > 0 ? 1 - bug.slowF : 1);
+    bug.d += sp * dt; bug.wob += dt * sp * 9;
+    if (bug.hit > 0) bug.hit -= dt;
+    const p = posAt(G.path, Math.max(0, bug.d));
+    const nx = -Math.sin(p.ang), ny = Math.cos(p.ang);
+    bug.x = p.x + nx * bug.side; bug.y = p.y + ny * bug.side; bug.ang = p.ang;
+    if (bug.d >= G.path.total) {
+      bug.hp = 0; bug.leaked = true;
+      G.lives -= BUGS[bug.type].eats; Sound.chomp();
+      floatText(G.cake.x, G.cake.y - 0.4, "-" + BUGS[bug.type].eats + " 🍰", "#ff6b6b");
+      G.shake = 0.3; updateHud();
+    }
+  }
+  G.bugs = G.bugs.filter(b => b.hp > 0);
+  if (G.shake > 0) G.shake -= dt;
+
+  // towers aim and fire at the bug furthest along the trail
+  for (const t of G.towers) {
+    const s = towerStats(t), b = TOWERS[t.type];
+    if (t.pop > 0) t.pop -= dt * 4;
+    t.cd -= dt;
+    let target = null;
+    for (const bug of G.bugs) {
+      if (bug.d < 0) continue;
+      if (Math.hypot(bug.x - t.x, bug.y - t.y) > s.range) continue;
+      if (b.slow && (BUGS[bug.type].noSlow || bug.slowT > 0.4) && target) continue; // honey prefers unslowed bugs
+      if (!target || bug.d > target.d) target = bug;
+    }
+    if (!target) continue;
+    t.ang = Math.atan2(target.y - t.y, target.x - t.x);
+    if (t.cd > 0) continue;
+    t.cd = 1 / s.rate; t.recoil = 0.1;
+    Sound.shoot(b.id);
+    if (b.id === "zap") {
+      // lightning jumps from bug to bug
+      const hitList = [target]; let from = target;
+      while (hitList.length < s.chain) {
+        let next = null, best = 1.6;
+        for (const bug of G.bugs) {
+          if (hitList.includes(bug)) continue;
+          const dd = Math.hypot(bug.x - from.x, bug.y - from.y);
+          if (dd < best) { best = dd; next = bug; }
+        }
+        if (!next) break; hitList.push(next); from = next;
+      }
+      const pts = [{ x: t.x, y: t.y - 0.25 }].concat(hitList.map(h => ({ x: h.x, y: h.y })));
+      G.bolts.push({ pts, life: 0.15 });
+      hitList.forEach((h, i) => hurt(h, s.dmg * (i === 0 ? 1 : 0.7), true));
+    } else {
+      G.shots.push({ kind: b.id, x: t.x + Math.cos(t.ang) * 0.3, y: t.y + Math.sin(t.ang) * 0.3, target, tx: target.x, ty: target.y,
+        speed: b.id === "sling" ? 12 : b.id === "pepper" ? 5.5 : 8, dmg: s.dmg, splash: s.splash, slow: s.slow, slowTime: b.slowTime || 0, t: 0 });
+    }
+  }
+
+  // shots fly (homing; if the bug is gone they land where it was)
+  for (const sh of G.shots) {
+    if (sh.target && sh.target.hp > 0) { sh.tx = sh.target.x; sh.ty = sh.target.y; }
+    const dx = sh.tx - sh.x, dy = sh.ty - sh.y, dist = Math.hypot(dx, dy), mv = sh.speed * dt;
+    sh.t += dt;
+    if (dist <= mv || dist < 0.05) {
+      sh.done = true;
+      if (sh.kind === "pepper") {
+        for (const bug of G.bugs) if (Math.hypot(bug.x - sh.tx, bug.y - sh.ty) <= sh.splash) hurt(bug, sh.dmg, false);
+        G.fx.push({ ring: true, x: sh.tx, y: sh.ty, life: 0.3, max: 0.3, r: sh.splash, c: "#e8502f" });
+        for (let i = 0; i < 8; i++) G.fx.push({ x: sh.tx, y: sh.ty, vx: (Math.random() - 0.5) * 4, vy: (Math.random() - 0.5) * 4, life: 0.4, max: 0.4, c: "#3a3a3a", r: 0.03 });
+      } else if (sh.target && sh.target.hp > 0) {
+        hurt(sh.target, sh.dmg, false);
+        if (sh.slow && !BUGS[sh.target.type].noSlow) { sh.target.slowT = sh.slowTime; sh.target.slowF = sh.slow; }
+        if (sh.kind === "squirt") for (let i = 0; i < 3; i++) G.fx.push({ x: sh.tx, y: sh.ty, vx: (Math.random() - 0.5) * 2.5, vy: (Math.random() - 0.5) * 2.5, life: 0.25, max: 0.25, c: "#8fd3ff", r: 0.04 });
+      }
+    } else { sh.x += dx / dist * mv; sh.y += dy / dist * mv; }
+  }
+  G.shots = G.shots.filter(s => !s.done);
+
+  for (const f of G.fx) { f.life -= dt; if (f.vx !== undefined) { f.x += f.vx * dt; f.y += f.vy * dt; f.vx *= 0.92; f.vy *= 0.92; } }
+  G.fx = G.fx.filter(f => f.life > 0);
+  for (const b of G.bolts) b.life -= dt; G.bolts = G.bolts.filter(b => b.life > 0);
+  for (const f of G.floats) { f.life -= dt; f.y -= dt * 0.8; } G.floats = G.floats.filter(f => f.life > 0);
+  for (const t of G.towers) if (t.recoil > 0) t.recoil -= dt;
+
+  // lose
+  if (G.lives <= 0) { G.lives = 0; endGame(false); return; }
+  // wave finished
+  if (G.waveActive && !G.queue.length && !G.bugs.length) {
+    G.waveActive = false;
+    const bonus = 25 + G.wave * 4;
+    G.crumbs += bonus; toast("Wave " + G.wave + " cleared! +" + bonus + " 🍪");
+    const best = store.get("picnicPanicBest", {}); if ((best[mapIndex] || 0) < G.wave) { best[mapIndex] = G.wave; store.set("picnicPanicBest", best); }
+    updateHud(); refreshBarCosts();
+    if (G.wave >= MAX_WAVE) endGame(true);
+  }
+}
+
+function endGame(won) {
+  G.over = true; picked = -1; selTower = null; refreshBar();
+  const best = store.get("picnicPanicBest", {});
+  const bw = won ? MAX_WAVE : Math.max(best[mapIndex] || 0, G.wave - 1);
+  if ((best[mapIndex] || 0) < bw) { best[mapIndex] = bw; store.set("picnicPanicBest", best); }
+  if (won) {
+    const wins = store.get("picnicPanicWins", {}); wins[mapIndex] = Math.max(wins[mapIndex] || 0, G.lives); store.set("picnicPanicWins", wins);
+    Sound.win();
+    $("endTitle").textContent = "🎉 Picnic saved! 🎉";
+    $("endText").innerHTML = "You held off all " + MAX_WAVE + " waves on <b>" + G.map.name + "</b> with <b>" + G.lives + "</b> cake slices left and squashed <b>" + G.kills + "</b> bugs.";
+  } else {
+    Sound.lose();
+    $("endTitle").textContent = "🐜 The bugs ate the cake! 🐜";
+    $("endText").innerHTML = "You made it to wave <b>" + G.wave + "</b> on <b>" + G.map.name + "</b> and squashed <b>" + G.kills + "</b> bugs.<br>Best on this map: wave " + bw + ".";
+  }
+  setTimeout(() => { $("endScreen").hidden = false; }, 900);
+  updateHud();
+}
+
+/* ---------- drawing ---------- */
+const cv = $("cv"), ctx = cv.getContext("2d");
+let T = 40, DPR = 1;
+
+function resize() {
+  const st = $("stage"), w = st.clientWidth, h = st.clientHeight, pad = 8;
+  T = Math.max(12, Math.floor(Math.min((w - pad * 2) / COLS, (h - pad * 2) / ROWS)));
+  DPR = Math.min(2.5, window.devicePixelRatio || 1);
+  const cw = T * COLS, ch = T * ROWS;
+  cv.style.width = cw + "px"; cv.style.height = ch + "px";
+  cv.style.left = Math.round((w - cw) / 2) + "px"; cv.style.top = Math.round((h - ch) / 2) + "px";
+  cv.width = Math.round(cw * DPR); cv.height = Math.round(ch * DPR);
+}
+
+function drawGround(c, map, path, decor, t) {
+  // grass (or kitchen tiles) in a soft checker
+  for (let x = 0; x < COLS; x++) for (let y = 0; y < ROWS; y++) {
+    c.fillStyle = (x + y) % 2 ? map.grass : map.grass2; c.fillRect(x * t, y * t, t + 1, t + 1);
+  }
+  if (map.tiles) { c.strokeStyle = "rgba(160,130,90,.35)"; c.lineWidth = Math.max(1, t * 0.03);
+    for (let x = 0; x <= COLS; x++) { c.beginPath(); c.moveTo(x * t, 0); c.lineTo(x * t, ROWS * t); c.stroke(); }
+    for (let y = 0; y <= ROWS; y++) { c.beginPath(); c.moveTo(0, y * t); c.lineTo(COLS * t, y * t); c.stroke(); } }
+  for (const d of decor) {
+    if (map.tiles) { c.fillStyle = "rgba(120,90,60,.18)"; c.beginPath(); c.arc(d.x * t, d.y * t, t * 0.06, 0, 7); c.fill(); continue; }
+    if (d.k === 0) { // flower
+      c.fillStyle = d.c; for (let i = 0; i < 5; i++) { const a = i * 1.257; c.beginPath(); c.arc(d.x * t + Math.cos(a) * t * 0.07, d.y * t + Math.sin(a) * t * 0.07, t * 0.055, 0, 7); c.fill(); }
+      c.fillStyle = "#ffcc33"; c.beginPath(); c.arc(d.x * t, d.y * t, t * 0.04, 0, 7); c.fill();
+    } else if (d.k === 1) { // grass tuft
+      c.strokeStyle = "rgba(40,100,30,.6)"; c.lineWidth = Math.max(1, t * 0.035);
+      for (let i = -1; i <= 1; i++) { c.beginPath(); c.moveTo(d.x * t + i * t * 0.05, d.y * t); c.lineTo(d.x * t + i * t * 0.1, d.y * t - t * 0.14); c.stroke(); }
+    } else { c.fillStyle = "#a9a39a"; c.beginPath(); c.ellipse(d.x * t, d.y * t, t * 0.1, t * 0.07, 0, 0, 7); c.fill(); }
+  }
+  // the dirt trail
+  c.lineCap = "round"; c.lineJoin = "round";
+  const trace = () => { c.beginPath(); path.pts.forEach((p, i) => i ? c.lineTo(p.x * t, p.y * t) : c.moveTo(p.x * t, p.y * t)); };
+  trace(); c.strokeStyle = map.tiles ? "#b98a5a" : "#9c6b3c"; c.lineWidth = t * 0.92; c.stroke();
+  trace(); c.strokeStyle = map.tiles ? "#d9ad7c" : "#c99a63"; c.lineWidth = t * 0.76; c.stroke();
+  c.setLineDash([t * 0.12, t * 0.3]); trace(); c.strokeStyle = "rgba(255,240,210,.35)"; c.lineWidth = t * 0.08; c.stroke(); c.setLineDash([]);
+  // ant hill where the bugs come from
+  const s0 = path.pts[0], hx = Math.max(0.4, Math.min(COLS - 0.4, s0.x)) * t, hy = Math.max(0.4, Math.min(ROWS - 0.4, s0.y)) * t;
+  c.fillStyle = "#7a4a24"; c.beginPath(); c.ellipse(hx, hy, t * 0.42, t * 0.3, 0, 0, 7); c.fill();
+  c.fillStyle = "#3d2614"; c.beginPath(); c.ellipse(hx, hy - t * 0.05, t * 0.14, t * 0.08, 0, 0, 7); c.fill();
+}
+
+function drawCake(c, x, y, t, lives) {
+  const px = x * t, py = y * t;
+  // plate
+  c.fillStyle = "#fff"; c.strokeStyle = "#c9c2b8"; c.lineWidth = t * 0.04;
+  c.beginPath(); c.ellipse(px, py + t * 0.22, t * 0.48, t * 0.16, 0, 0, 7); c.fill(); c.stroke();
+  // cake body (shrinks as slices are eaten)
+  const frac = Math.max(0.15, (lives === undefined ? 20 : lives) / 20);
+  const w = t * 0.68, h = t * 0.36;
+  c.save(); c.beginPath(); c.moveTo(px, py); c.arc(px, py, t, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * frac); c.closePath(); c.clip();
+  c.fillStyle = "#f5c98a"; c.fillRect(px - w / 2, py - h / 2 + t * 0.05, w, h);
+  c.fillStyle = "#ff8fb1"; c.fillRect(px - w / 2, py - h / 2 + t * 0.05, w, h * 0.3);
+  c.fillStyle = "#fff"; c.beginPath(); c.ellipse(px, py - h / 2 + t * 0.05, w / 2, t * 0.1, 0, 0, 7); c.fill();
+  c.restore();
+  // cherry on top
+  c.fillStyle = "#e3263a"; c.beginPath(); c.arc(px, py - h / 2 - t * 0.02, t * 0.08, 0, 7); c.fill();
+  c.strokeStyle = "#3a7a2a"; c.lineWidth = t * 0.025; c.beginPath(); c.moveTo(px, py - h / 2 - t * 0.08); c.quadraticCurveTo(px + t * 0.05, py - h / 2 - t * 0.2, px + t * 0.12, py - h / 2 - t * 0.2); c.stroke();
+}
+
+function drawBug(c, bug, t, now) {
+  const b = BUGS[bug.type], s = b.size * t, px = bug.x * t, py = bug.y * t;
+  c.save(); c.translate(px, py); c.rotate(bug.ang);
+  // legs wiggle
+  c.strokeStyle = "#1e140e"; c.lineWidth = Math.max(1, t * 0.03);
+  const wig = Math.sin(bug.wob) * s * 0.25;
+  if (bug.type !== "moth") for (let i = -1; i <= 1; i++) for (const side of [-1, 1]) {
+    c.beginPath(); c.moveTo(i * s * 0.4, 0); c.lineTo(i * s * 0.4 + (i === 0 ? wig : -wig) * side, side * s * 0.85); c.stroke();
+  }
+  if (bug.hit > 0) c.globalAlpha = 0.6;
+  if (bug.type === "ant" || bug.type === "queen") {
+    c.fillStyle = bug.hit > 0 ? "#fff" : b.color;
+    c.beginPath(); c.ellipse(-s * 0.55, 0, s * 0.45, s * 0.34, 0, 0, 7); c.fill();
+    c.beginPath(); c.ellipse(0, 0, s * 0.28, s * 0.22, 0, 0, 7); c.fill();
+    c.beginPath(); c.arc(s * 0.45, 0, s * 0.27, 0, 7); c.fill();
+    c.strokeStyle = b.color; c.beginPath(); c.moveTo(s * 0.6, -s * 0.1); c.lineTo(s * 0.95, -s * 0.4); c.moveTo(s * 0.6, s * 0.1); c.lineTo(s * 0.95, s * 0.4); c.stroke();
+    if (bug.type === "queen") {
+      c.fillStyle = "#ffd84a"; c.beginPath(); c.moveTo(s * 0.3, -s * 0.2); c.lineTo(s * 0.3, s * 0.2); c.lineTo(s * 0.55, s * 0.32); c.lineTo(s * 0.48, 0); c.lineTo(s * 0.55, -s * 0.32); c.closePath(); c.fill();
+      c.fillStyle = "rgba(220,220,255,.55)"; c.beginPath(); c.ellipse(-s * 0.3, -s * 0.45, s * 0.45, s * 0.2, -0.4, 0, 7); c.ellipse(-s * 0.3, s * 0.45, s * 0.45, s * 0.2, 0.4, 0, 7); c.fill();
+    }
+  } else if (bug.type === "lady") {
+    c.fillStyle = bug.hit > 0 ? "#fff" : b.color; c.beginPath(); c.arc(0, 0, s * 0.6, 0, 7); c.fill();
+    c.fillStyle = "#111"; c.beginPath(); c.arc(s * 0.5, 0, s * 0.3, 0, 7); c.fill();
+    c.strokeStyle = "#111"; c.lineWidth = Math.max(1, t * 0.025); c.beginPath(); c.moveTo(-s * 0.6, 0); c.lineTo(s * 0.3, 0); c.stroke();
+    c.beginPath(); [[-0.25, -0.3], [-0.25, 0.3], [0.1, -0.33], [0.1, 0.33]].forEach(([a, bb]) => { c.moveTo(a * s + s * 0.1, bb * s); c.arc(a * s, bb * s, s * 0.1, 0, 7); }); c.fillStyle = "#111"; c.fill();
+  } else if (bug.type === "beetle") {
+    c.fillStyle = bug.hit > 0 ? "#fff" : b.color; c.beginPath(); c.ellipse(-s * 0.1, 0, s * 0.62, s * 0.5, 0, 0, 7); c.fill();
+    c.fillStyle = "#1e4a38"; c.beginPath(); c.arc(s * 0.5, 0, s * 0.25, 0, 7); c.fill();
+    c.strokeStyle = "rgba(255,255,255,.5)"; c.lineWidth = Math.max(1, t * 0.02); c.beginPath(); c.moveTo(-s * 0.7, 0); c.lineTo(s * 0.4, 0); c.stroke();
+    c.fillStyle = "rgba(255,255,255,.35)"; c.beginPath(); c.ellipse(-s * 0.25, -s * 0.22, s * 0.2, s * 0.08, 0, 0, 7); c.fill();
+  } else if (bug.type === "moth") {
+    const flap = Math.abs(Math.sin(now * 14 + bug.wob)) * 0.6 + 0.4;
+    c.fillStyle = bug.hit > 0 ? "#fff" : b.color;
+    c.beginPath(); c.ellipse(-s * 0.1, -s * 0.5 * flap, s * 0.45, s * 0.42 * flap, -0.3, 0, 7); c.ellipse(-s * 0.1, s * 0.5 * flap, s * 0.45, s * 0.42 * flap, 0.3, 0, 7); c.fill();
+    c.fillStyle = "#7a6648"; c.beginPath(); c.ellipse(0, 0, s * 0.5, s * 0.14, 0, 0, 7); c.fill();
+  }
+  c.globalAlpha = 1;
+  c.restore();
+  // honey drips on slowed bugs
+  if (bug.slowT > 0) { c.fillStyle = "rgba(255,181,46,.8)"; c.beginPath(); c.arc(px, py + s * 0.4, s * 0.18, 0, 7); c.fill(); }
+  // health bar
+  if (bug.hp < bug.maxHp) {
+    const w = Math.max(t * 0.5, s * 1.6), y = py - s - t * 0.1;
+    c.fillStyle = "rgba(0,0,0,.5)"; c.fillRect(px - w / 2, y, w, t * 0.07);
+    c.fillStyle = bug.hp / bug.maxHp > 0.5 ? "#5fd35f" : bug.hp / bug.maxHp > 0.25 ? "#ffcc33" : "#ff4d4d";
+    c.fillRect(px - w / 2, y, w * Math.max(0, bug.hp / bug.maxHp), t * 0.07);
+  }
+}
+
+// Each defender is drawn at (0,0) facing right, size t.
+function drawTowerShape(c, type, t, ang, level, recoil) {
+  const id = TOWERS[type].id;
+  // base pad
+  c.fillStyle = "rgba(0,0,0,.18)"; c.beginPath(); c.ellipse(0, t * 0.3, t * 0.4, t * 0.12, 0, 0, 7); c.fill();
+  c.fillStyle = "#e8d3ad"; c.strokeStyle = "#7a4a24"; c.lineWidth = t * 0.04;
+  c.beginPath(); c.arc(0, t * 0.08, t * 0.36, 0, 7); c.fill(); c.stroke();
+  c.save(); c.rotate(ang); c.translate(-(recoil > 0 ? recoil : 0) * t * 0.8, 0);
+  if (id === "squirt") {
+    c.fillStyle = "#4fb3ff"; c.strokeStyle = "#1f6fa8"; c.lineWidth = t * 0.035;
+    rr(c, -t * 0.22, -t * 0.15, t * 0.34, t * 0.3, t * 0.08); c.fill(); c.stroke();
+    c.fillStyle = "#fff"; rr(c, t * 0.08, -t * 0.08, t * 0.2, t * 0.16, t * 0.03); c.fill(); c.stroke();
+    c.fillStyle = "#1f6fa8"; c.fillRect(t * 0.26, -t * 0.035, t * 0.1, t * 0.07);
+    c.fillStyle = "rgba(255,255,255,.6)"; c.fillRect(-t * 0.16, -t * 0.1, t * 0.05, t * 0.18);
+  } else if (id === "pepper") {
+    c.rotate(-ang); // shaker stands upright
+    c.fillStyle = "#f3f0ea"; c.strokeStyle = "#555"; c.lineWidth = t * 0.035;
+    rr(c, -t * 0.15, -t * 0.22, t * 0.3, t * 0.42, t * 0.1); c.fill(); c.stroke();
+    c.fillStyle = "#c0c0c8"; rr(c, -t * 0.16, -t * 0.34, t * 0.32, t * 0.14, t * 0.05); c.fill(); c.stroke();
+    c.fillStyle = "#333"; for (let i = -1; i <= 1; i++) { c.beginPath(); c.arc(i * t * 0.07, -t * 0.28, t * 0.02, 0, 7); c.fill(); }
+    c.fillStyle = "#e8502f"; c.font = "bold " + Math.round(t * 0.22) + "px sans-serif"; c.textAlign = "center"; c.textBaseline = "middle"; c.fillText("P", 0, 0);
+  } else if (id === "honey") {
+    c.rotate(-ang);
+    c.fillStyle = "#ffb52e"; c.strokeStyle = "#a8620a"; c.lineWidth = t * 0.035;
+    c.beginPath(); c.ellipse(0, t * 0.02, t * 0.24, t * 0.22, 0, 0, 7); c.fill(); c.stroke();
+    c.fillStyle = "#d98a1a"; rr(c, -t * 0.17, -t * 0.26, t * 0.34, t * 0.1, t * 0.04); c.fill(); c.stroke();
+    c.fillStyle = "#fff6e0"; rr(c, -t * 0.12, -t * 0.03, t * 0.24, t * 0.12, t * 0.03); c.fill();
+    c.strokeStyle = "#7a4a24"; c.lineWidth = t * 0.03; c.save(); c.rotate(ang); c.beginPath(); c.moveTo(0, -t * 0.2); c.lineTo(t * 0.32, -t * 0.05); c.stroke();
+    c.fillStyle = "#ffb52e"; c.beginPath(); c.arc(t * 0.33, -t * 0.04, t * 0.05, 0, 7); c.fill(); c.restore();
+  } else if (id === "sling") {
+    c.strokeStyle = "#7a4a24"; c.lineWidth = t * 0.08; c.lineCap = "round";
+    c.beginPath(); c.moveTo(-t * 0.1, 0); c.lineTo(t * 0.08, 0); c.moveTo(t * 0.08, 0); c.lineTo(t * 0.26, -t * 0.17); c.moveTo(t * 0.08, 0); c.lineTo(t * 0.26, t * 0.17); c.stroke();
+    c.strokeStyle = "#e8502f"; c.lineWidth = t * 0.03; c.beginPath(); c.moveTo(t * 0.26, -t * 0.17); c.lineTo(-t * 0.05 - (recoil > 0 ? 0 : t * 0.1), 0); c.lineTo(t * 0.26, t * 0.17); c.stroke();
+    c.fillStyle = "#8a8378"; c.beginPath(); c.arc(-t * 0.08, 0, t * 0.06, 0, 7); c.fill();
+  } else if (id === "zap") {
+    c.rotate(-ang);
+    c.fillStyle = "#4a3a6a"; c.strokeStyle = "#2a1f40"; c.lineWidth = t * 0.035;
+    rr(c, -t * 0.18, -t * 0.26, t * 0.36, t * 0.46, t * 0.06); c.fill(); c.stroke();
+    c.strokeStyle = "#c9a4ff"; c.lineWidth = t * 0.025;
+    for (let i = -2; i <= 2; i++) { c.beginPath(); c.moveTo(i * t * 0.06, -t * 0.22); c.lineTo(i * t * 0.06, t * 0.16); c.stroke(); }
+    c.fillStyle = "rgba(190,150,255," + (0.5 + 0.5 * Math.sin(performance.now() / 120)) + ")";
+    c.beginPath(); c.arc(0, -t * 0.03, t * 0.08, 0, 7); c.fill();
+  }
+  c.restore();
+  // level stars
+  for (let i = 0; i < level; i++) star(c, (i - (level - 1) / 2) * t * 0.2, t * 0.36, t * 0.08);
+}
+function rr(c, x, y, w, h, r) { c.beginPath(); c.moveTo(x + r, y); c.arcTo(x + w, y, x + w, y + h, r); c.arcTo(x + w, y + h, x, y + h, r); c.arcTo(x, y + h, x, y, r); c.arcTo(x, y, x + w, y, r); c.closePath(); }
+function star(c, x, y, r) {
+  c.fillStyle = "#ffd84a"; c.strokeStyle = "#a8620a"; c.lineWidth = r * 0.3; c.beginPath();
+  for (let i = 0; i < 10; i++) { const a = -Math.PI / 2 + i * Math.PI / 5, rad = i % 2 ? r * 0.45 : r; c.lineTo(x + Math.cos(a) * rad, y + Math.sin(a) * rad); }
+  c.closePath(); c.fill(); c.stroke();
+}
+
+function draw() {
+  ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+  if (!G) { ctx.clearRect(0, 0, cv.width, cv.height); return; }
+  const now = performance.now() / 1000;
+  ctx.save();
+  if (G.shake > 0) ctx.translate((Math.random() - 0.5) * T * 0.12, (Math.random() - 0.5) * T * 0.12);
+  drawGround(ctx, G.map, G.path, G.decor, T);
+  // squished bug splats
+  for (const f of G.fx) if (f.splat) { ctx.globalAlpha = Math.min(1, f.life) * 0.35; ctx.fillStyle = f.c; ctx.beginPath(); ctx.ellipse(f.x * T, f.y * T, f.r * T, f.r * T * 0.7, 0, 0, 7); ctx.fill(); }
+  ctx.globalAlpha = 1;
+  drawCake(ctx, G.cake.x, G.cake.y, T, G.lives);
+
+  // placement preview
+  const showTile = picked >= 0 && hoverTile;
+  if (showTile) {
+    const { c, r } = hoverTile, ok = tileFree(c, r) && G.crumbs >= TOWERS[picked].cost;
+    ctx.fillStyle = ok ? "rgba(255,255,255,.35)" : "rgba(255,60,60,.35)"; ctx.fillRect(c * T, r * T, T, T);
+    rangeCircle((c + 0.5) * T, (r + 0.5) * T, TOWERS[picked].range * T, ok);
+  }
+  if (selTower) rangeCircle(selTower.x * T, selTower.y * T, towerStats(selTower).range * T, true);
+
+  // towers, then bugs sorted by height so they overlap nicely
+  for (const t of G.towers) {
+    ctx.save(); ctx.translate(t.x * T, t.y * T);
+    const sc = 1 + Math.max(0, t.pop) * 0.25; ctx.scale(sc, sc);
+    drawTowerShape(ctx, t.type, T, t.ang, t.level, t.recoil);
+    ctx.restore();
+    if (t === selTower) { ctx.strokeStyle = "#ffd84a"; ctx.lineWidth = 3; ctx.strokeRect(t.c * T + 2, t.r * T + 2, T - 4, T - 4); }
+  }
+  if (showTile && tileFree(hoverTile.c, hoverTile.r)) {
+    ctx.save(); ctx.globalAlpha = 0.6; ctx.translate((hoverTile.c + 0.5) * T, (hoverTile.r + 0.5) * T); drawTowerShape(ctx, picked, T, -Math.PI / 2, 0, 0); ctx.restore();
+  }
+  for (const bug of G.bugs) if (bug.d >= -0.2) drawBug(ctx, bug, T, now);
+
+  // shots
+  for (const s of G.shots) {
+    const x = s.x * T, y = s.y * T;
+    if (s.kind === "squirt") { ctx.fillStyle = "#8fd3ff"; ctx.beginPath(); ctx.arc(x, y, T * 0.07, 0, 7); ctx.fill(); ctx.fillStyle = "#fff"; ctx.beginPath(); ctx.arc(x - T * 0.02, y - T * 0.02, T * 0.025, 0, 7); ctx.fill(); }
+    else if (s.kind === "pepper") { const lift = Math.sin(Math.min(1, s.t * 3) * Math.PI) * T * 0.25; ctx.fillStyle = "#333"; for (let i = 0; i < 5; i++) { ctx.beginPath(); ctx.arc(x + Math.cos(i * 1.3) * T * 0.07, y - lift + Math.sin(i * 1.3) * T * 0.07, T * 0.035, 0, 7); ctx.fill(); } }
+    else if (s.kind === "honey") { ctx.fillStyle = "#ffb52e"; ctx.beginPath(); ctx.arc(x, y, T * 0.09, 0, 7); ctx.fill(); }
+    else if (s.kind === "sling") { ctx.fillStyle = "#8a8378"; ctx.beginPath(); ctx.arc(x, y, T * 0.07, 0, 7); ctx.fill(); }
+  }
+  // lightning
+  for (const b of G.bolts) {
+    ctx.strokeStyle = "rgba(220,200,255," + (b.life / 0.15) + ")"; ctx.lineWidth = T * 0.06; ctx.beginPath();
+    b.pts.forEach((p, i) => {
+      if (!i) { ctx.moveTo(p.x * T, p.y * T); return; }
+      const q = b.pts[i - 1];
+      for (let k = 1; k <= 4; k++) { const f = k / 4; ctx.lineTo((q.x + (p.x - q.x) * f) * T + (k < 4 ? (Math.random() - 0.5) * T * 0.25 : 0), (q.y + (p.y - q.y) * f) * T + (k < 4 ? (Math.random() - 0.5) * T * 0.25 : 0)); }
+    });
+    ctx.stroke(); ctx.strokeStyle = "#fff"; ctx.lineWidth = T * 0.02; ctx.stroke();
+  }
+  // particles
+  for (const f of G.fx) {
+    if (f.splat) continue;
+    const a = f.life / f.max;
+    if (f.ring) { ctx.strokeStyle = f.c; ctx.globalAlpha = a; ctx.lineWidth = T * 0.06; ctx.beginPath(); ctx.arc(f.x * T, f.y * T, f.r * T * (1.1 - a * 0.5), 0, 7); ctx.stroke(); }
+    else { ctx.globalAlpha = a; ctx.fillStyle = f.c; ctx.beginPath(); ctx.arc(f.x * T, f.y * T, f.r * T, 0, 7); ctx.fill(); }
+  }
+  ctx.globalAlpha = 1;
+  // floating numbers
+  ctx.font = "bold " + Math.round(T * 0.34) + "px 'Trebuchet MS', sans-serif"; ctx.textAlign = "center"; ctx.textBaseline = "middle";
+  for (const f of G.floats) { ctx.globalAlpha = Math.min(1, f.life * 2); ctx.lineWidth = 3; ctx.strokeStyle = "rgba(0,0,0,.6)"; ctx.strokeText(f.text, f.x * T, f.y * T); ctx.fillStyle = f.color; ctx.fillText(f.text, f.x * T, f.y * T); }
+  ctx.globalAlpha = 1;
+  if (paused && !G.over) {
+    ctx.fillStyle = "rgba(0,0,0,.35)"; ctx.fillRect(0, 0, COLS * T, ROWS * T);
+    ctx.fillStyle = "#fff"; ctx.font = "bold " + Math.round(T * 0.9) + "px 'Trebuchet MS', sans-serif"; ctx.fillText("Paused", COLS * T / 2, ROWS * T / 2);
+  }
+  ctx.restore();
+}
+function rangeCircle(x, y, r, ok) {
+  ctx.fillStyle = ok ? "rgba(255,255,255,.14)" : "rgba(255,60,60,.12)"; ctx.strokeStyle = ok ? "rgba(255,255,255,.75)" : "rgba(255,80,80,.8)";
+  ctx.lineWidth = 2; ctx.setLineDash([6, 5]); ctx.beginPath(); ctx.arc(x, y, r, 0, 7); ctx.fill(); ctx.stroke(); ctx.setLineDash([]);
+}
+
+/* ---------- HUD and bars ---------- */
+function updateHud() {
+  if (!G) return;
+  $("crumbs").textContent = Math.floor(G.crumbs);
+  $("lives").textContent = G.lives;
+  $("wave").textContent = G.wave + " / " + MAX_WAVE;
+  const go = $("goBtn");
+  go.disabled = G.waveActive || G.over || G.wave >= MAX_WAVE;
+  go.textContent = G.waveActive ? "Bugs coming…" : G.wave === 0 ? "Send bugs ▶" : "Next wave ▶";
+  $("speedBtn").textContent = speed + "×";
+  $("pauseBtn").textContent = paused ? "▶" : "⏸";
+  $("muteBtn").textContent = Sound.muted ? "🔇" : "🔊";
+}
+
+function buildShop() {
+  const shop = $("shop"); shop.innerHTML = "";
+  TOWERS.forEach((tw, i) => {
+    const b = document.createElement("button"); b.className = "tw"; b.dataset.i = i; b.title = tw.name + ": " + tw.desc;
+    const ic = document.createElement("canvas"); ic.width = 80; ic.height = 80;
+    const c2 = ic.getContext("2d"); c2.translate(40, 36); drawTowerShape(c2, i, 70, -Math.PI / 4, 0, 0);
+    b.appendChild(ic);
+    b.insertAdjacentHTML("beforeend", '<span class="key">' + (i + 1) + '</span><span class="nm">' + tw.name + '</span><span class="cost">🍪' + tw.cost + "</span>");
+    b.addEventListener("click", () => { Sound.init(); pickTower(i); });
+    shop.appendChild(b);
+  });
+}
+function pickTower(i) {
+  if (!G || G.over) return;
+  selTower = null;
+  picked = picked === i ? -1 : i;
+  if (picked >= 0 && G.crumbs < TOWERS[i].cost) toast("Need " + TOWERS[i].cost + " crumbs for a " + TOWERS[i].name);
+  else if (picked >= 0) toast(TOWERS[i].name + ": " + TOWERS[i].desc);
+  refreshBar();
+}
+function refreshBarCosts() {
+  document.querySelectorAll(".tw").forEach(b => {
+    const i = +b.dataset.i; b.classList.toggle("sel", i === picked); b.classList.toggle("poor", !!G && G.crumbs < TOWERS[i].cost);
+  });
+  if (selTower) fillInfo();
+}
+function refreshBar() {
+  $("bar").classList.toggle("picked", !!selTower);
+  refreshBarCosts();
+}
+function fillInfo() {
+  const t = selTower, b = TOWERS[t.type], s = towerStats(t);
+  $("iName").textContent = b.name + " " + "★".repeat(t.level) + (t.level >= 2 ? " (max)" : "");
+  let st = "Hit " + Math.round(s.dmg) + " · Range " + s.range.toFixed(1) + " · " + s.rate.toFixed(1) + "/sec";
+  if (s.splash) st += " · Splash"; if (s.slow) st += " · Slow " + Math.round(s.slow * 100) + "%"; if (s.chain) st += " · Chains " + s.chain;
+  $("iStats").textContent = st;
+  const up = $("upBtn"), cost = upgradeCost(t);
+  up.disabled = t.level >= 2 || G.crumbs < cost;
+  up.textContent = t.level >= 2 ? "Max level" : "Upgrade 🍪" + cost;
+  $("sellBtn").textContent = "Sell +" + sellValue(t);
+}
+
+let toastTimer = 0;
+function toast(msg) { const el = $("toast"); el.textContent = msg; el.classList.add("show"); clearTimeout(toastTimer); toastTimer = setTimeout(() => el.classList.remove("show"), 2200); }
+
+/* ---------- input ---------- */
+function tileFromEvent(e) {
+  const r = cv.getBoundingClientRect();
+  const c = Math.floor((e.clientX - r.left) / T), row = Math.floor((e.clientY - r.top) / T);
+  if (c < 0 || row < 0 || c >= COLS || row >= ROWS) return null;
+  return { c, r: row };
+}
+cv.addEventListener("pointermove", e => { if (e.pointerType === "mouse") hoverTile = tileFromEvent(e); });
+cv.addEventListener("pointerleave", () => { hoverTile = null; });
+cv.addEventListener("pointerdown", e => {
+  e.preventDefault(); Sound.init();
+  if (!G || G.over) return;
+  const tile = tileFromEvent(e); if (!tile) return;
+  const existing = towerAt(tile.c, tile.r);
+  if (existing) { picked = -1; selTower = selTower === existing ? null : existing; refreshBar(); return; }
+  if (picked >= 0) {
+    if (e.pointerType !== "mouse") hoverTile = tile;   // show where it went on touch screens
+    placeTower(picked, tile.c, tile.r);
+    return;
+  }
+  if (selTower) { selTower = null; refreshBar(); return; }
+  if (!G.path.onPath.has(tile.c + "," + tile.r)) toast(isMobileMode() ? "Tap a defender below first" : "Pick a defender below first (1-5)");
+});
+
+$("goBtn").addEventListener("click", () => { Sound.init(); startWave(); });
+$("speedBtn").addEventListener("click", () => { speed = speed === 1 ? 2 : speed === 2 ? 3 : 1; updateHud(); });
+$("pauseBtn").addEventListener("click", () => { paused = !paused; updateHud(); });
+$("muteBtn").addEventListener("click", () => { Sound.init(); Sound.setMuted(!Sound.muted); updateHud(); });
+$("upBtn").addEventListener("click", () => upgradeTower(selTower));
+$("sellBtn").addEventListener("click", () => sellTower(selTower));
+$("closeBtn").addEventListener("click", () => { selTower = null; refreshBar(); });
+$("againBtn").addEventListener("click", () => { Sound.init(); newGame(mapIndex); });
+$("menuBtn").addEventListener("click", showMenu);
+
+document.addEventListener("keydown", e => {
+  Sound.init();
+  if (!G || G.over || !$("startScreen").hidden) return;
+  const k = e.code;
+  if (/^Digit[1-5]$/.test(k)) pickTower(+k.slice(5) - 1);
+  else if (k === "Space" || k === "Enter") { e.preventDefault(); startWave(); }
+  else if (k === "KeyF") { speed = speed === 1 ? 2 : speed === 2 ? 3 : 1; updateHud(); }
+  else if (k === "KeyP") { paused = !paused; updateHud(); }
+  else if (k === "KeyM") { Sound.setMuted(!Sound.muted); updateHud(); }
+  else if (k === "KeyU") upgradeTower(selTower);
+  else if (k === "KeyS" && selTower) sellTower(selTower);
+  else if (k === "Escape") { picked = -1; selTower = null; refreshBar(); }
+});
+
+/* ---------- start screen ---------- */
+function showMenu() {
+  $("endScreen").hidden = true; $("startScreen").hidden = false;
+  const best = store.get("picnicPanicBest", {}), wins = store.get("picnicPanicWins", {});
+  const box = $("maps"); box.innerHTML = "";
+  MAPS.forEach((m, i) => {
+    const b = document.createElement("button"); b.className = "map";
+    const pv = document.createElement("canvas"); pv.width = 320; pv.height = 200;
+    const c2 = pv.getContext("2d"), path = buildPath(m), old = mapIndex; mapIndex = i;
+    drawGround(c2, m, path, makeDecor(m, path), 20); const e = m.path[m.path.length - 1]; drawCake(c2, e[0] + 0.5, e[1] + 0.5, 20);
+    mapIndex = old;
+    b.appendChild(pv);
+    const bw = best[i] || 0;
+    b.insertAdjacentHTML("beforeend", '<div class="mn">' + m.name + '</div><div class="md">' + m.desc + "</div>" +
+      '<div class="md"><b>' + (wins[i] !== undefined ? "🏆 Won! " : "") + (bw ? "Best: wave " + bw : "Not played yet") + "</b></div>");
+    b.addEventListener("click", () => { Sound.init(); newGame(i); });
+    box.appendChild(b);
+  });
+}
+
+/* ---------- main loop ---------- */
+let lastT = performance.now();
+function frame(now) {
+  let dt = Math.min(0.05, (now - lastT) / 1000); lastT = now;
+  if (G && !paused && !G.over && $("startScreen").hidden) {
+    const steps = speed; for (let i = 0; i < steps; i++) step(dt);
+  } else if (G && G.over) { // let particles finish after the game ends
+    for (const f of G.fx) f.life -= dt; G.fx = G.fx.filter(f => f.life > 0);
+  }
+  draw();
+  requestAnimationFrame(frame);
+}
+window.addEventListener("resize", resize);
+try { new ResizeObserver(resize).observe($("stage")); } catch (e) {}
+buildShop(); showMenu(); resize();
+requestAnimationFrame(frame);
+</script>
+</body>
+</html>
