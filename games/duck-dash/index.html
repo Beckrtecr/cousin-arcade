@@ -1,0 +1,896 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<title>Duck Dash — Cousin Arcade</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body {
+    width: 100%; height: 100%; overflow: hidden;
+    font-family: "Arial Rounded MT Bold", "Trebuchet MS", "Segoe UI", system-ui, sans-serif;
+    color: #23324a; -webkit-tap-highlight-color: transparent; overscroll-behavior: none;
+    touch-action: none; -webkit-user-select: none; user-select: none; -webkit-touch-callout: none;
+  }
+  body { background: #2c5e3a; display: flex; flex-direction: column; }
+  button { font-family: inherit; cursor: pointer; touch-action: manipulation; }
+
+  /* ---------- top bar ---------- */
+  #top {
+    flex: 0 0 auto; display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+    padding: calc(6px + env(safe-area-inset-top, 0px)) 10px 6px; background: #1f6fa8; color: #fff;
+    border-bottom: 4px solid #164f7a; font-weight: bold; z-index: 2;
+  }
+  .stat { display: flex; align-items: center; gap: 5px; background: rgba(0,0,0,.22); padding: 4px 10px; border-radius: 999px; font-size: 16px; white-space: nowrap; }
+  #top .spacer { flex: 1; }
+  .tbtn {
+    border: 3px solid #fff; border-radius: 12px; background: #ffd23f; color: #23324a; font-weight: bold;
+    font-size: 15px; padding: 5px 12px; box-shadow: 0 3px 0 rgba(0,0,0,.3); white-space: nowrap;
+  }
+  .tbtn:active { transform: translateY(2px); box-shadow: 0 1px 0 rgba(0,0,0,.3); }
+  .tbtn.go { background: #5fd35f; }
+  .tbtn.small { padding: 5px 9px; min-width: 40px; }
+
+  #stage { flex: 1 1 auto; position: relative; min-height: 0; overflow: hidden; }
+  #cv { position: absolute; left: 0; top: 0; display: block; }
+  #hint {
+    position: absolute; left: 50%; bottom: 18px; transform: translateX(-50%); pointer-events: none;
+    background: rgba(20,40,70,.8); color: #fff; padding: 7px 16px; border-radius: 999px; font-weight: bold;
+    font-size: 16px; white-space: nowrap; transition: opacity .4s; z-index: 3;
+  }
+  #hint.gone { opacity: 0; }
+
+  /* ---------- big screens ---------- */
+  .overlay {
+    position: fixed; inset: 0; z-index: 10; display: flex; align-items: center; justify-content: center;
+    background: rgba(15, 35, 60, .55); padding: 12px; touch-action: pan-y;
+  }
+  .overlay[hidden] { display: none; }
+  .card {
+    background: #fffbe8; border: 5px solid #23324a; border-radius: 24px; padding: 16px 20px; width: min(600px, 100%);
+    max-height: 100%; overflow: auto; text-align: center; box-shadow: 0 10px 0 rgba(0,0,0,.25); -webkit-overflow-scrolling: touch;
+  }
+  h1 { font-size: clamp(34px, 8vw, 52px); color: #f2a100; text-shadow: 3px 3px 0 #1f6fa8; line-height: 1.05; }
+  h1 small { display: block; font-size: .38em; color: #23324a; text-shadow: none; margin-top: 6px; }
+  h2 { font-size: clamp(26px, 6vw, 38px); color: #d6333a; }
+  .skins { display: flex; gap: 8px; justify-content: center; flex-wrap: wrap; margin: 12px 0 6px; }
+  .skin {
+    width: 112px; border: 4px solid #23324a; border-radius: 16px; background: #fff; padding: 6px 4px; color: #23324a;
+    display: flex; flex-direction: column; align-items: center; gap: 2px; font-weight: bold; font-size: 14px;
+  }
+  .skin canvas { width: 56px; height: 56px; }
+  .skin .cost { font-size: 12px; color: #b07a00; }
+  .skin.sel { background: #ffe680; box-shadow: 0 0 0 4px #f2a100; }
+  .skin.locked canvas { filter: saturate(.8); opacity: .85; }
+  .skin.locked.poor { opacity: .55; }
+  .row { display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; margin-top: 12px; }
+  .big { font-size: 22px; padding: 10px 28px; }
+  .how { background: #e6f3ff; border-radius: 14px; padding: 8px 12px; font-size: 14px; line-height: 1.5; text-align: left; margin-top: 8px; }
+  kbd { display: inline-block; padding: 0 5px; border: 2px solid #23324a; border-bottom-width: 3px; border-radius: 6px; background: #fff; font-size: 12px; }
+  .wallet { font-weight: bold; margin-top: 4px; }
+  #endText { font-size: 18px; line-height: 1.5; margin-top: 6px; }
+  #pauseScreen .card { width: min(360px, 100%); }
+
+  @media (max-width: 560px), (max-height: 480px) {
+    .stat { font-size: 14px; padding: 3px 8px; }
+    .tbtn { font-size: 13px; padding: 4px 9px; }
+    .skin { width: 84px; font-size: 12px; }
+    .skin canvas { width: 44px; height: 44px; }
+    .big { font-size: 19px; padding: 8px 22px; }
+  }
+</style>
+</head>
+<body>
+<div id="top">
+  <div class="stat" title="Score (rows hopped)">🏁 <span id="score">0</span></div>
+  <div class="stat" title="Coins">🪙 <span id="coins">0</span></div>
+  <div class="stat" title="Best score">🏆 <span id="best">0</span></div>
+  <div class="spacer"></div>
+  <button class="tbtn small" id="muteBtn" title="Sound on/off (M)">🔊</button>
+  <button class="tbtn small" id="pauseBtn" title="Pause (P)">⏸</button>
+</div>
+<div id="stage"><canvas id="cv"></canvas><div id="hint" class="gone"></div></div>
+
+<div class="overlay" id="startScreen">
+  <div class="card">
+    <h1>Duck Dash<small>Hop across the busy town to the pond and beyond!</small></h1>
+    <div class="skins" id="skins"></div>
+    <div class="wallet">🪙 <span id="wallet">0</span> coins saved</div>
+    <div class="row"><button class="tbtn go big" id="playBtn">Hop! ▶</button></div>
+    <div class="how">
+      <b>How to play:</b> hop forward as far as you can. Dodge cars and trucks, ride the drifting
+      logs and lily pads across rivers (don't fall in!), and stay off the tracks when the light flashes.
+      Grab 🪙 coins to unlock new hoppers: a frog, a penguin, a bunny, a kitty, a piglet, a hedgehog and more. Don't dawdle, or the hungry hawk swoops in!<br>
+      <span id="howKeys"><b>Keys:</b> <kbd>↑</kbd> <kbd>↓</kbd> <kbd>←</kbd> <kbd>→</kbd> or <kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> to hop, <kbd>P</kbd> pause, <kbd>M</kbd> sound. You can also click to hop forward.</span>
+      <span id="howTouch"><b>Touch:</b> tap anywhere to hop forward, swipe left, right or down to hop that way.</span>
+    </div>
+  </div>
+</div>
+
+<div class="overlay" id="endScreen" hidden>
+  <div class="card">
+    <h2 id="endTitle">Quack!</h2>
+    <p id="endText"></p>
+    <div class="row">
+      <button class="tbtn go big" id="againBtn">Hop again</button>
+      <button class="tbtn" id="menuBtn">Pick a hopper</button>
+    </div>
+  </div>
+</div>
+
+<div class="overlay" id="pauseScreen" hidden>
+  <div class="card">
+    <h2 style="color:#1f6fa8">Paused</h2>
+    <div class="row"><button class="tbtn go big" id="resumeBtn">Keep hopping</button></div>
+    <div class="row"><button class="tbtn" id="quitBtn">Quit to menu</button></div>
+  </div>
+</div>
+
+<!-- The arcade's shared PC/mobile switch helper. Always fetch the newest copy; the game works without it. -->
+<script>try { document.write('<script src="../../mobile-mode.js?v=' + Date.now() + '"><\/script>'); } catch (e) {}</script>
+<script>
+"use strict";
+/* =====================================================================
+   DUCK DASH: an endless lane-hopping game for the Cousin Arcade.
+   A rubber duck hops across roads, rivers and train tracks.
+   ===================================================================== */
+const COLS = 9;          // play columns (0..8)
+const EDGE = 4;          // extra columns off each side where cars wrap around
+const LANE_LEN = COLS + EDGE * 2;
+const HOP_TIME = 0.13;
+const $ = id => document.getElementById(id);
+const store = {   // localStorage can throw (private mode), so every use is wrapped
+  get(k, d) { try { const v = localStorage.getItem(k); return v === null ? d : JSON.parse(v); } catch (e) { return d; } },
+  set(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) {} },
+};
+function isMobileMode() {
+  try { if (window.CousinMode) return CousinMode.isMobile(); } catch (e) {}
+  try { return matchMedia("(pointer: coarse)").matches; } catch (e) { return false; }
+}
+const rnd = (a, b) => a + Math.random() * (b - a);
+const rint = (a, b) => Math.floor(rnd(a, b + 1));
+const pick = arr => arr[Math.floor(Math.random() * arr.length)];
+const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+
+/* ---------- ducks you can play as ---------- */
+const SKINS = [
+  { id: "sunny",  name: "Sunny Duck",     kind: "duck",     cost: 0,   body: "#ffd23f", shade: "#e9a800", beak: "#ff8a1f" },
+  { id: "frog",   name: "Hoppy Frog",     kind: "frog",     cost: 20,  body: "#6fd44a", shade: "#3f9a2a", beak: "#e25a7a" },
+  { id: "peng",   name: "Waddles",        kind: "penguin",  cost: 40,  body: "#2a3142", shade: "#161b26", beak: "#ffa21f", belly: "#f4f4f0" },
+  { id: "bunny",  name: "Clover Bunny",   kind: "bunny",    cost: 60,  body: "#f2eee8", shade: "#c9c1b6", beak: "#ff8fb1" },
+  { id: "kitty",  name: "Mittens",        kind: "kitty",    cost: 80,  body: "#f5a345", shade: "#c8731d", beak: "#ff8fb1" },
+  { id: "pig",    name: "Truffle Piglet", kind: "pig",      cost: 100, body: "#ffb3c7", shade: "#e68aa3", beak: "#ff8fab" },
+  { id: "hog",    name: "Spike",          kind: "hedgehog", cost: 130, body: "#e8c79a", shade: "#7a5434", beak: "#3a2a22" },
+  { id: "night",  name: "Midnight Duck",  kind: "duck",     cost: 160, body: "#5b4bb7", shade: "#372b80", beak: "#ffd23f", stars: true },
+  { id: "robo",   name: "Robo-Duck",      kind: "robo",     cost: 220, body: "#c6ccd8", shade: "#7d8596", beak: "#ff5a3a" },
+];
+
+/* ---------- sound ---------- */
+const sfx = {
+  ac: null, master: null, muted: store.get("duckDashMuted", false),
+  init() {
+    if (this.ac) { if (this.ac.state === "suspended") this.ac.resume(); return; }
+    const AC = window.AudioContext || window.webkitAudioContext; if (!AC) return;
+    try { this.ac = new AC(); this.master = this.ac.createGain(); this.master.gain.value = this.muted ? 0 : 0.35; this.master.connect(this.ac.destination); }
+    catch (e) { this.ac = null; }
+  },
+  setMuted(m) { this.muted = m; store.set("duckDashMuted", m); if (this.master) this.master.gain.value = m ? 0 : 0.35; },
+  tone(f1, f2, dur, type = "sine", vol = 0.15, delay = 0) {
+    if (!this.ac || this.muted) return;
+    try {
+      const t = this.ac.currentTime + delay, o = this.ac.createOscillator(), g = this.ac.createGain();
+      o.type = type; o.frequency.setValueAtTime(f1, t); o.frequency.exponentialRampToValueAtTime(Math.max(20, f2), t + dur);
+      g.gain.setValueAtTime(vol, t); g.gain.exponentialRampToValueAtTime(0.001, t + dur);
+      o.connect(g); g.connect(this.master); o.start(t); o.stop(t + dur + 0.02);
+    } catch (e) {}
+  },
+  noise(dur, vol = 0.2, freq = 800) {
+    if (!this.ac || this.muted) return;
+    try {
+      const len = Math.floor(this.ac.sampleRate * dur), buf = this.ac.createBuffer(1, len, this.ac.sampleRate), d = buf.getChannelData(0);
+      for (let i = 0; i < len; i++) d[i] = (Math.random() * 2 - 1) * (1 - i / len);
+      const src = this.ac.createBufferSource(), f = this.ac.createBiquadFilter(), g = this.ac.createGain();
+      f.type = "lowpass"; f.frequency.value = freq; g.gain.value = vol;
+      src.buffer = buf; src.connect(f); f.connect(g); g.connect(this.master); src.start();
+    } catch (e) {}
+  },
+  hop()   { this.tone(520, 880, 0.08, "square", 0.05); },
+  coin()  { this.tone(990, 990, 0.06, "square", 0.07); this.tone(1320, 1320, 0.12, "square", 0.07, 0.06); },
+  splash(){ this.noise(0.5, 0.35, 1200); this.tone(300, 90, 0.3, "sine", 0.12); },
+  squish(){ this.tone(420, 60, 0.35, "sawtooth", 0.12); this.noise(0.15, 0.25, 600); },
+  honk()  { this.tone(330, 320, 0.18, "square", 0.05); this.tone(392, 380, 0.18, "square", 0.05); },
+  bell()  { this.tone(1400, 1350, 0.12, "triangle", 0.06); },
+  hawk()  { this.tone(1600, 700, 0.5, "sawtooth", 0.06); },
+  buy()   { [660, 880, 1100].forEach((f, i) => this.tone(f, f, 0.1, "square", 0.07, i * 0.08)); },
+};
+
+/* ---------- state ---------- */
+let lanes = {};          // row number -> lane
+let genRow = 0;          // next row to generate
+let lastType = "grass", lastTreeCols = null;
+let duck, camRow, score, runCoins, started, state = "menu", deathAt = 0, deathKind = "";
+let particles = [], floaters = [];
+let totalCoins = store.get("duckDashCoins", 0);
+let best = store.get("duckDashBest", 0);
+let owned = store.get("duckDashOwned", ["sunny"]);
+let skinId = store.get("duckDashSkin", "sunny");
+if (!owned.includes(skinId)) skinId = "sunny";
+let time = 0, lastHonk = 0;
+
+function skin() { return SKINS.find(s => s.id === skinId) || SKINS[0]; }
+function difficulty() { return clamp(genRow / 260, 0, 1); }
+
+/* ---------- world building ---------- */
+function makeGrass(row, safe) {
+  const lane = { type: "grass", row, trees: new Set(), coins: new Set(), shade: row % 2 };
+  if (!safe) {
+    const n = rint(0, lastType === "river" ? 0 : 3);
+    const free = rint(0, COLS - 1);   // always keep this column open
+    for (let i = 0; i < n; i++) {
+      const c = rint(0, COLS - 1);
+      if (c === free) continue;
+      if (lastTreeCols && lastTreeCols.has(c) && Math.random() < 0.7) continue;
+      lane.trees.add(c);
+    }
+    for (let c = 0; c < COLS; c++) if (!lane.trees.has(c) && Math.random() < 0.05) lane.coins.add(c);
+  }
+  lane.deco = [];
+  for (let c = -EDGE; c < COLS + EDGE; c++) {
+    if (c >= 0 && c < COLS) { if (Math.random() < 0.12 && !lane.trees.has(c)) lane.deco.push({ c, kind: "flower", hue: pick(["#fff", "#ff8fc0", "#ffe14d"]) }); }
+    else if (Math.random() < 0.55) lane.deco.push({ c, kind: Math.random() < 0.7 ? "tree" : "rock" });
+  }
+  lane.treeKinds = {};
+  lane.trees.forEach(c => lane.treeKinds[c] = Math.random() < 0.72 ? "tree" : "rock");
+  lastTreeCols = lane.trees;
+  return lane;
+}
+function fillMovers(lane, wMin, wMax, gMin, gMax) {
+  lane.items = [];
+  let x = -EDGE + rnd(0, gMax);
+  while (true) {
+    const w = rint(wMin, wMax);
+    if (x + w > COLS + EDGE - gMin) break;
+    lane.items.push({ x, w, color: pick(CAR_COLORS) });
+    x += w + rnd(gMin, gMax);
+  }
+  if (!lane.items.length) lane.items.push({ x: 0, w: wMin, color: pick(CAR_COLORS) });
+}
+const CAR_COLORS = ["#e53b3b", "#3b82e5", "#2fb86a", "#f08a24", "#9b5cff", "#ff5fa8", "#20b8c8", "#f2c200"];
+function makeRoad(row, dir, d) {
+  const lane = { type: "road", row, dir, coins: new Set() };
+  lane.speed = rnd(1.4, 2.4) + d * rnd(1.2, 2.6);
+  const truck = Math.random() < 0.3;
+  fillMovers(lane, truck ? 2 : 1, truck ? 3 : 1, 2.6 - d * 0.6, 5.5 - d * 1.5);
+  lane.items.forEach(it => it.kind = it.w >= 2 ? "truck" : pick(["car", "car", "bug"]));
+  for (let c = 0; c < COLS; c++) if (Math.random() < 0.035) lane.coins.add(c);
+  return lane;
+}
+function makeRiver(row, dir, d, pads) {
+  const lane = { type: "river", row, dir, coins: new Set() };
+  if (pads) {
+    lane.speed = 0; lane.dir = 0; lane.items = [];
+    let c = rint(0, 1);
+    while (c < COLS) { lane.items.push({ x: c, w: 1, kind: "pad", spin: rnd(0, 6) }); c += rint(1, 3); }
+    if (lane.items.length < 3) { lane.items = []; for (let c2 = 0; c2 < COLS; c2 += 2) lane.items.push({ x: c2, w: 1, kind: "pad", spin: rnd(0, 6) }); }
+  } else {
+    lane.speed = rnd(0.9, 1.6) + d * rnd(0.4, 1.2);
+    fillMovers(lane, 2, 4 - (d > 0.6 ? 1 : 0), 1.4, 2.6 + d * 0.6);
+    lane.items.forEach(it => it.kind = "log");
+  }
+  return lane;
+}
+function makeRail(row) {
+  return { type: "rail", row, timer: rnd(1.5, 5), train: null, dir: Math.random() < 0.5 ? 1 : -1, coins: new Set(), dinged: false };
+}
+function genSegment() {
+  const d = difficulty();
+  if (genRow < 5) { addLane(makeGrass(genRow, true)); return; }
+  const roll = Math.random();
+  let type;
+  if (lastType !== "grass" && Math.random() < 0.55) type = "grass";
+  else if (roll < 0.45) type = "road";
+  else if (roll < 0.75) type = "river";
+  else if (roll < 0.9) type = "rail";
+  else type = "grass";
+  if (type === lastType && type !== "grass") type = "grass";
+  if (type === "grass") {
+    const n = rint(1, 2);
+    for (let i = 0; i < n; i++) addLane(makeGrass(genRow, false));
+  } else if (type === "road") {
+    const n = rint(1, 2 + Math.round(d * 3));
+    let dir = Math.random() < 0.5 ? 1 : -1;
+    for (let i = 0; i < n; i++) { addLane(makeRoad(genRow, dir, d)); if (Math.random() < 0.6) dir = -dir; }
+  } else if (type === "river") {
+    const n = rint(1, 2 + Math.round(d * 2));
+    let dir = Math.random() < 0.5 ? 1 : -1, prevPads = true;
+    for (let i = 0; i < n; i++) {
+      const pads = !prevPads && Math.random() < 0.3;
+      addLane(makeRiver(genRow, dir, d, pads)); prevPads = pads; dir = -dir;
+    }
+  } else {
+    const n = rint(1, 1 + Math.round(d));
+    for (let i = 0; i < n; i++) addLane(makeRail(genRow));
+  }
+}
+function addLane(lane) { lanes[lane.row] = lane; lastType = lane.type; if (lane.type !== "grass") lastTreeCols = null; genRow++; }
+function ensureLanes(upTo) { while (genRow <= upTo) genSegment(); }
+
+/* ---------- a new run ---------- */
+function newRun() {
+  lanes = {}; genRow = 0; lastType = "grass"; lastTreeCols = null;
+  ensureLanes(30);
+  duck = { x: 4, row: 2, fromX: 4, fromRow: 2, toX: 4, toRow: 2, hopT: 1, face: 0, queued: null, dead: false, squash: 0, alive: true };
+  camRow = 0; score = 0; runCoins = 0; started = false; particles = []; floaters = [];
+  state = "play"; deathKind = "";
+  updateHud();
+  showHint(isMobileMode() ? "Tap to hop · swipe to turn" : "Arrow keys or WASD to hop");
+}
+
+/* ---------- moving ---------- */
+const DIRS = { up: [0, 1, 0], down: [0, -1, Math.PI], left: [-1, 0, -Math.PI / 2], right: [1, 0, Math.PI / 2] };
+function tryHop(dirName) {
+  if (state !== "play" || duck.dead) return;
+  sfx.init();
+  if (duck.hopT < 1) { duck.queued = dirName; return; }
+  const [dx, dr, face] = DIRS[dirName];
+  duck.face = face;
+  const toRow = duck.row + dr;
+  if (toRow < camRow - 0.2) return;
+  const toLane = lanes[toRow];
+  if (!toLane) return;
+  let tx = duck.x + dx;
+  if (toLane.type !== "river") tx = Math.round(tx);
+  if (dx !== 0 && (tx < -0.45 || tx > COLS - 0.55)) return;      // wall
+  if (dx === 0 && toLane.type !== "river") tx = clamp(tx, 0, COLS - 1);
+  if (toLane.type === "grass" && toLane.trees.has(Math.round(tx))) { duck.squash = 0.15; return; }   // bonk a tree
+  duck.fromX = duck.x; duck.fromRow = duck.row; duck.toX = tx; duck.toRow = toRow; duck.hopT = 0;
+  duck.row = toRow;
+  if (!started) { started = true; hideHint(); }
+  sfx.hop();
+}
+function land() {
+  duck.x = duck.toX;
+  const lane = lanes[duck.row];
+  if (lane.type === "river") {
+    const it = itemUnder(lane, duck.x);
+    if (!it) { die("splash"); return; }
+    if (it.kind === "pad") { duck.x = it.x; it.bob = 1; }
+    else it.bob = 1;
+  }
+  const c = Math.round(duck.x);
+  if (lane.coins && lane.coins.has(c) && Math.abs(duck.x - c) < 0.4) {
+    lane.coins.delete(c); runCoins++; totalCoins++; store.set("duckDashCoins", totalCoins); sfx.coin();
+    floaters.push({ x: c, row: duck.row, t: 0, text: "+1" });
+  }
+  score = Math.max(score, duck.row - 2);
+  updateHud();
+  if (duck.queued) { const q = duck.queued; duck.queued = null; tryHop(q); }
+}
+// item.x is the left edge in tile units (column c covers c..c+1); the duck's centre is x + 0.5
+function itemUnder(lane, x) {
+  const px = x + 0.5;
+  for (const it of lane.items) if (px > it.x - 0.15 && px < it.x + it.w + 0.15) return it;
+  return null;
+}
+function die(kind) {
+  if (duck.dead) return;
+  duck.dead = true; deathKind = kind; deathAt = time; state = "dying";
+  if (kind === "splash") { sfx.splash(); for (let i = 0; i < 18; i++) particles.push({ x: duck.x, row: duck.row, vx: rnd(-2, 2), vy: rnd(1, 4), t: 0, life: rnd(0.4, 0.8), c: pick(["#bfe8ff", "#fff", "#7cc8f2"]) }); }
+  else if (kind === "hawk") { sfx.hawk(); }
+  else { sfx.squish(); for (let i = 0; i < 14; i++) particles.push({ x: duck.x, row: duck.row, vx: rnd(-3, 3), vy: rnd(0, 4), t: 0, life: rnd(0.3, 0.7), c: pick(["#fff", skin().body, skin().shade]) }); }
+  if (score > best) { best = score; store.set("duckDashBest", best); }
+  updateHud();
+  setTimeout(showEnd, kind === "hawk" ? 1500 : 1100);
+}
+
+/* ---------- update ---------- */
+function update(dt) {
+  time += dt;
+  // lanes move whether or not the duck is alive (looks nicer)
+  const lo = Math.floor(camRow) - 3, hi = Math.ceil(camRow + viewRows()) + 3;
+  for (let r = lo; r <= hi; r++) {
+    const lane = lanes[r]; if (!lane) continue;
+    if (lane.items && lane.speed) {
+      for (const it of lane.items) {
+        it.x += lane.dir * lane.speed * dt;
+        if (lane.dir > 0 && it.x > COLS + EDGE) it.x -= LANE_LEN + it.w;
+        if (lane.dir < 0 && it.x + it.w < -EDGE) it.x += LANE_LEN + it.w;
+      }
+    }
+    if (lane.items) for (const it of lane.items) if (it.bob) it.bob = Math.max(0, it.bob - dt * 4);
+    if (lane.type === "rail") updateRail(lane, dt);
+  }
+  for (const p of particles) { p.t += dt; p.x += p.vx * dt; p.row += p.vy * dt; p.vy -= 9 * dt; }
+  particles = particles.filter(p => p.t < p.life);
+  for (const f of floaters) f.t += dt;
+  floaters = floaters.filter(f => f.t < 0.8);
+
+  if (state !== "play") return;
+  // hopping
+  if (duck.hopT < 1) {
+    duck.hopT = Math.min(1, duck.hopT + dt / HOP_TIME);
+    if (duck.hopT >= 1) land();
+  } else {
+    const lane = lanes[duck.row];
+    if (lane.type === "river") {
+      const it = itemUnder(lane, duck.x);
+      if (!it) die("splash");
+      else {
+        duck.x += lane.dir * lane.speed * dt;
+        if (duck.x < -0.7 || duck.x > COLS - 0.3) die("splash");
+      }
+    }
+  }
+  if (duck.squash > 0) duck.squash = Math.max(0, duck.squash - dt);
+  if (duck.dead) return;
+  // hits
+  const vx = visX(), vr = Math.round(visRow());
+  const lane = lanes[vr];
+  const airborne = duck.hopT > 0.2 && duck.hopT < 0.8;
+  if (lane && !airborne) {
+    if (lane.type === "road") {
+      for (const it of lane.items) if (vx + 0.82 > it.x + 0.08 && vx + 0.18 < it.x + it.w - 0.08) { duck.x = vx; duck.row = vr; duck.hopT = 1; die("squish"); return; }
+      // honk when a car is close
+      for (const it of lane.items) {
+        const dist = lane.dir > 0 ? vx + 0.5 - (it.x + it.w) : it.x - vx - 0.5;
+        if (dist > 0 && dist < 1.4 && time - lastHonk > 1.2 && Math.random() < 0.05) { sfx.honk(); lastHonk = time; }
+      }
+    } else if (lane.type === "rail" && lane.train) {
+      const t = lane.train;
+      if (vx + 0.8 > t.x && vx + 0.2 < t.x + t.w) { duck.x = vx; duck.row = vr; duck.hopT = 1; die("train"); return; }
+    }
+  }
+  // camera
+  const target = duck.row - 3;
+  if (target > camRow) camRow += (target - camRow) * Math.min(1, dt * 5);
+  if (started) camRow += (0.32 + Math.min(0.4, score / 350)) * dt;
+  if (duck.row + 0.4 < camRow) { die("hawk"); return; }
+  ensureLanes(Math.ceil(camRow + viewRows()) + 12);
+  // tidy old rows
+  for (const k in lanes) if (+k < camRow - 12) delete lanes[k];
+}
+function updateRail(lane, dt) {
+  if (lane.train) {
+    lane.train.x += lane.dir * 24 * dt;
+    if ((lane.dir > 0 && lane.train.x > COLS + EDGE + 2) || (lane.dir < 0 && lane.train.x + lane.train.w < -EDGE - 2)) {
+      lane.train = null; lane.timer = rnd(2.5, 6) - difficulty() * 1.2; lane.dinged = false;
+    }
+  } else {
+    lane.timer -= dt;
+    if (lane.timer < 1.4 && !lane.dinged) {
+      lane.dinged = true;
+      if (state === "play" && Math.abs(lane.row - duck.row) < 6) { sfx.bell(); sfx.bell(); setTimeout(() => sfx.bell(), 300); }
+    }
+    if (lane.timer <= 0) {
+      const w = rint(8, 14);
+      lane.train = { w, x: lane.dir > 0 ? -EDGE - w - 1 : COLS + EDGE + 1, cars: rint(2, 4), color: pick(["#d6333a", "#1f6fa8", "#2f9a5a", "#7a4ab8"]) };
+    }
+  }
+}
+function visX() { const t = easeHop(duck.hopT); return duck.hopT < 1 ? duck.fromX + (duck.toX - duck.fromX) * t : duck.x; }
+function visRow() { const t = easeHop(duck.hopT); return duck.hopT < 1 ? duck.fromRow + (duck.toRow - duck.fromRow) * t : duck.row; }
+function easeHop(t) { return t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2; }
+
+/* ---------- drawing ---------- */
+const cv = $("cv"), mainCtx = cv.getContext("2d");
+let ctx = mainCtx;   // swapped briefly to paint menu pictures
+let W = 0, H = 0, T = 40, OX = 0, DPR = 1;
+function resize() {
+  const st = $("stage"), r = st.getBoundingClientRect();
+  DPR = Math.min(2.5, window.devicePixelRatio || 1);
+  W = Math.max(100, r.width); H = Math.max(100, r.height);
+  cv.width = Math.round(W * DPR); cv.height = Math.round(H * DPR);
+  cv.style.width = W + "px"; cv.style.height = H + "px";
+  T = Math.min(W / (COLS + 0.6), H / 8.5);
+  OX = (W - COLS * T) / 2;
+}
+function viewRows() { return H / T; }
+function sx(x) { return OX + (x + 0.5) * T; }              // column centre -> screen x
+function syTop(row) { return H - (row - camRow + 1) * T; } // top edge of a row on screen
+function rr(x, y, w, h, r) { ctx.beginPath(); ctx.roundRect ? ctx.roundRect(x, y, w, h, r) : ctx.rect(x, y, w, h); }
+
+function draw() {
+  ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+  ctx.fillStyle = "#2c5e3a"; ctx.fillRect(0, 0, W, H);
+  if (!duck) return;
+  const lo = Math.floor(camRow) - 1, hi = Math.ceil(camRow + viewRows()) + 1;
+  // ground
+  for (let r = lo; r <= hi; r++) { const lane = lanes[r]; if (lane) drawGround(lane, syTop(r)); }
+  // dim the off-play edges
+  ctx.fillStyle = "rgba(10,30,20,.28)";
+  ctx.fillRect(0, 0, OX, H); ctx.fillRect(OX + COLS * T, 0, W - OX - COLS * T, H);
+  // things, far rows first so near rows overlap them
+  const dr = Math.round(visRow());
+  for (let r = hi; r >= lo; r--) {
+    const lane = lanes[r]; if (!lane) continue;
+    drawThings(lane, syTop(r));
+    if (r === dr && duck.alive) drawDuckInWorld();
+  }
+  for (const p of particles) { ctx.globalAlpha = 1 - p.t / p.life; ctx.fillStyle = p.c; ctx.beginPath(); ctx.arc(sx(p.x), syTop(p.row) + T / 2, T * 0.08, 0, 7); ctx.fill(); }
+  ctx.globalAlpha = 1;
+  for (const f of floaters) {
+    ctx.globalAlpha = 1 - f.t / 0.8; ctx.fillStyle = "#ffd23f"; ctx.strokeStyle = "#23324a"; ctx.lineWidth = 3;
+    ctx.font = `bold ${Math.round(T * 0.4)}px sans-serif`; ctx.textAlign = "center";
+    const y = syTop(f.row) - f.t * T * 0.8; ctx.strokeText(f.text, sx(f.x), y); ctx.fillText(f.text, sx(f.x), y);
+  }
+  ctx.globalAlpha = 1;
+  // hawk warning when the duck is near the bottom
+  if (state === "play" && started) {
+    const gap = duck.row - camRow;
+    if (gap < 1.6) {
+      const a = (1.6 - gap) / 1.6 * (0.45 + 0.25 * Math.sin(time * 14));
+      const g = ctx.createLinearGradient(0, H, 0, H - T * 2.5);
+      g.addColorStop(0, `rgba(220,30,30,${a})`); g.addColorStop(1, "rgba(220,30,30,0)");
+      ctx.fillStyle = g; ctx.fillRect(0, H - T * 2.5, W, T * 2.5);
+      drawHawk(sx(duck.x), H + T * 0.6 - (1.6 - gap) * T * 0.5, T * 0.8, false);
+    }
+  }
+  if (state === "dying" && deathKind === "hawk") {
+    const k = Math.min(1, (time - deathAt) / 1.2);
+    const hx = sx(duck.x), hy = H + T - k * (H + T * 3);
+    if (k < 0.35) drawDuck(hx, syTop(duck.row) + T / 2, T, 0, 0, 0);
+    drawHawk(hx, k < 0.35 ? syTop(duck.row) + T / 2 + (0.35 - k) * H * 1.6 : hy, T * 1.3, k >= 0.35);
+  }
+}
+
+function drawGround(lane, y) {
+  const x0 = OX - EDGE * T, w = (COLS + EDGE * 2) * T;
+  if (lane.type === "grass") {
+    ctx.fillStyle = lane.shade ? "#8bd65a" : "#80cc50"; ctx.fillRect(x0, y, w, T + 1);
+  } else if (lane.type === "road") {
+    ctx.fillStyle = "#4a4f5c"; ctx.fillRect(x0, y, w, T + 1);
+    const above = lanes[lane.row + 1], below = lanes[lane.row - 1];
+    ctx.fillStyle = "#e9e3c8";
+    if (above && above.type === "road") for (let c = -EDGE; c < COLS + EDGE; c++) ctx.fillRect(OX + c * T + T * 0.2, y - T * 0.03, T * 0.5, T * 0.06);
+    if (!above || above.type !== "road") { ctx.fillStyle = "#8a8f9c"; ctx.fillRect(x0, y, w, T * 0.08); }
+    if (!below || below.type !== "road") { ctx.fillStyle = "#30343d"; ctx.fillRect(x0, y + T * 0.92, w, T * 0.08); }
+  } else if (lane.type === "river") {
+    ctx.fillStyle = "#3ea6e6"; ctx.fillRect(x0, y, w, T + 1);
+    ctx.strokeStyle = "rgba(255,255,255,.35)"; ctx.lineWidth = Math.max(1.5, T * 0.04);
+    for (let i = 0; i < 6; i++) {
+      const px = OX + (((i * 2.3 + lane.row * 1.7 + time * 0.4 * (lane.dir || 0.3)) % (COLS + 4)) - 2) * T;
+      const py = y + T * (0.3 + ((i * 37 + lane.row * 13) % 5) / 10);
+      ctx.beginPath(); ctx.moveTo(px, py); ctx.quadraticCurveTo(px + T * 0.2, py - T * 0.08, px + T * 0.4, py); ctx.stroke();
+    }
+    const below = lanes[lane.row - 1];
+    if (below && below.type !== "river") { ctx.fillStyle = "rgba(0,40,80,.25)"; ctx.fillRect(x0, y + T * 0.9, w, T * 0.1); }
+  } else if (lane.type === "rail") {
+    ctx.fillStyle = "#9c8f7e"; ctx.fillRect(x0, y, w, T + 1);
+    ctx.fillStyle = "#6e5236";
+    for (let c = -EDGE * 2; c < (COLS + EDGE) * 2; c++) ctx.fillRect(OX + c * T / 2 + T * 0.1, y + T * 0.15, T * 0.18, T * 0.7);
+    ctx.fillStyle = "#c9ccd4";
+    ctx.fillRect(x0, y + T * 0.27, w, T * 0.07); ctx.fillRect(x0, y + T * 0.66, w, T * 0.07);
+  }
+}
+
+function drawThings(lane, y) {
+  if (lane.type === "grass") {
+    for (const d of lane.deco) {
+      const cx = sx(d.c);
+      if (d.kind === "flower") { ctx.fillStyle = d.hue; for (let i = 0; i < 3; i++) { ctx.beginPath(); ctx.arc(cx - T * 0.2 + i * T * 0.12, y + T * (0.3 + (i % 2) * 0.35), T * 0.05, 0, 7); ctx.fill(); } }
+      else if (d.kind === "tree") drawTree(cx, y);
+      else drawRock(cx, y);
+    }
+    lane.trees.forEach(c => lane.treeKinds[c] === "tree" ? drawTree(sx(c), y) : drawRock(sx(c), y));
+  }
+  if (lane.coins) lane.coins.forEach(c => drawCoin(sx(c), y + T / 2));
+  if (lane.type === "road") for (const it of lane.items) drawVehicle(it, lane.dir, y);
+  if (lane.type === "river") for (const it of lane.items) it.kind === "pad" ? drawPad(it, y) : drawLog(it, y);
+  if (lane.type === "rail") {
+    // signal post at the left edge
+    const px = OX - T * 0.35, warn = !lane.train && lane.timer < 1.4 || !!lane.train;
+    ctx.fillStyle = "#3a3a3a"; ctx.fillRect(px - T * 0.04, y - T * 0.25, T * 0.08, T * 0.9);
+    rr(px - T * 0.2, y - T * 0.45, T * 0.4, T * 0.28, T * 0.08); ctx.fillStyle = "#222"; ctx.fill();
+    const on = warn && Math.floor(time * 6) % 2 === 0;
+    ctx.fillStyle = on ? "#ff3030" : "#5a1a1a"; ctx.beginPath(); ctx.arc(px - T * 0.08, y - T * 0.31, T * 0.07, 0, 7); ctx.fill();
+    ctx.fillStyle = !on && warn ? "#ff3030" : "#5a1a1a"; ctx.beginPath(); ctx.arc(px + T * 0.08, y - T * 0.31, T * 0.07, 0, 7); ctx.fill();
+    if (warn && !lane.train) { ctx.fillStyle = `rgba(255,40,40,${0.12 + 0.1 * Math.sin(time * 18)})`; ctx.fillRect(OX, y, COLS * T, T); }
+    if (lane.train) drawTrain(lane.train, lane.dir, y);
+  }
+}
+function drawTree(cx, y) {
+  ctx.fillStyle = "rgba(0,0,0,.18)"; ctx.beginPath(); ctx.ellipse(cx, y + T * 0.8, T * 0.36, T * 0.12, 0, 0, 7); ctx.fill();
+  ctx.fillStyle = "#7a4a24"; ctx.fillRect(cx - T * 0.07, y + T * 0.45, T * 0.14, T * 0.35);
+  ctx.fillStyle = "#2f8a3a"; ctx.beginPath(); ctx.arc(cx, y + T * 0.3, T * 0.38, 0, 7); ctx.fill();
+  ctx.fillStyle = "#3fa84a"; ctx.beginPath(); ctx.arc(cx - T * 0.08, y + T * 0.2, T * 0.26, 0, 7); ctx.fill();
+}
+function drawRock(cx, y) {
+  ctx.fillStyle = "rgba(0,0,0,.18)"; ctx.beginPath(); ctx.ellipse(cx, y + T * 0.78, T * 0.38, T * 0.12, 0, 0, 7); ctx.fill();
+  ctx.fillStyle = "#7d8592"; rr(cx - T * 0.36, y + T * 0.3, T * 0.72, T * 0.5, T * 0.2); ctx.fill();
+  ctx.fillStyle = "#a3abb8"; rr(cx - T * 0.3, y + T * 0.22, T * 0.56, T * 0.36, T * 0.16); ctx.fill();
+}
+function drawCoin(cx, cy) {
+  const s = Math.abs(Math.cos(time * 3)) * 0.8 + 0.2, bob = Math.sin(time * 4) * T * 0.04;
+  ctx.fillStyle = "#c98a00"; ctx.beginPath(); ctx.ellipse(cx, cy + bob + T * 0.03, T * 0.2 * s, T * 0.2, 0, 0, 7); ctx.fill();
+  ctx.fillStyle = "#ffd23f"; ctx.beginPath(); ctx.ellipse(cx, cy + bob, T * 0.2 * s, T * 0.2, 0, 0, 7); ctx.fill();
+  ctx.fillStyle = "#fff3a6"; ctx.beginPath(); ctx.ellipse(cx - T * 0.05 * s, cy + bob - T * 0.06, T * 0.05 * s, T * 0.06, 0, 0, 7); ctx.fill();
+}
+function drawVehicle(it, dir, y) {
+  const x = OX + it.x * T + T * 0.04, w = it.w * T - T * 0.08, top = y + T * 0.14, h = T * 0.66;
+  ctx.fillStyle = "rgba(0,0,0,.25)"; rr(x + 3, top + h * 0.2, w, h, T * 0.14); ctx.fill();
+  if (it.kind === "truck") {
+    const cabW = T * 0.7, cabX = dir > 0 ? x + w - cabW : x, boxX = dir > 0 ? x : x + cabW;
+    ctx.fillStyle = "#f4f1e6"; rr(boxX, top - T * 0.06, w - cabW - T * 0.04, h + T * 0.06, T * 0.08); ctx.fill();
+    ctx.fillStyle = it.color; ctx.fillRect(boxX + T * 0.1, top + h * 0.3, w - cabW - T * 0.24, h * 0.22);
+    ctx.fillStyle = it.color; rr(cabX, top, cabW, h, T * 0.14); ctx.fill();
+    ctx.fillStyle = "#bfe6ff"; ctx.fillRect(dir > 0 ? cabX + cabW * 0.55 : cabX + cabW * 0.15, top + h * 0.15, cabW * 0.3, h * 0.7);
+  } else {
+    ctx.fillStyle = it.color; rr(x, top, w, h, it.kind === "bug" ? h * 0.48 : T * 0.16); ctx.fill();
+    ctx.fillStyle = "rgba(255,255,255,.25)"; rr(x + w * 0.12, top + h * 0.1, w * 0.76, h * 0.2, T * 0.06); ctx.fill();
+    ctx.fillStyle = "#bfe6ff";
+    const wx = dir > 0 ? x + w * 0.58 : x + w * 0.18;
+    rr(wx, top + h * 0.18, w * 0.24, h * 0.64, T * 0.06); ctx.fill();
+    ctx.fillStyle = "#fff8b0"; ctx.beginPath(); ctx.arc(dir > 0 ? x + w - T * 0.04 : x + T * 0.04, top + h * 0.22, T * 0.05, 0, 7); ctx.arc(dir > 0 ? x + w - T * 0.04 : x + T * 0.04, top + h * 0.78, T * 0.05, 0, 7); ctx.fill();
+  }
+}
+function drawLog(it, y) {
+  const x = OX + it.x * T + T * 0.03, w = it.w * T - T * 0.06, bob = (it.bob || 0) * T * 0.06;
+  const top = y + T * 0.16 + bob, h = T * 0.68;
+  ctx.fillStyle = "rgba(0,30,60,.25)"; rr(x + 2, top + h * 0.25, w, h, h / 2); ctx.fill();
+  ctx.fillStyle = "#8a5a2b"; rr(x, top, w, h, h / 2); ctx.fill();
+  ctx.fillStyle = "#a8743c"; rr(x + T * 0.1, top + h * 0.12, w - T * 0.2, h * 0.3, h * 0.15); ctx.fill();
+  ctx.fillStyle = "#d9a96a"; ctx.beginPath(); ctx.ellipse(x + w - h * 0.3, top + h / 2, h * 0.22, h * 0.4, 0, 0, 7); ctx.fill();
+  ctx.strokeStyle = "#a8743c"; ctx.lineWidth = 1.5; ctx.beginPath(); ctx.ellipse(x + w - h * 0.3, top + h / 2, h * 0.11, h * 0.2, 0, 0, 7); ctx.stroke();
+}
+function drawPad(it, y) {
+  const cx = OX + (it.x + 0.5) * T, cy = y + T / 2 + (it.bob || 0) * T * 0.06, r = T * 0.42;
+  ctx.fillStyle = "#2c8a3e"; ctx.beginPath(); ctx.moveTo(cx, cy); ctx.arc(cx, cy, r, it.spin + 0.35, it.spin + Math.PI * 2 - 0.35); ctx.closePath(); ctx.fill();
+  ctx.fillStyle = "#48b85a"; ctx.beginPath(); ctx.moveTo(cx, cy); ctx.arc(cx, cy, r * 0.85, it.spin + 0.4, it.spin + Math.PI * 2 - 0.4); ctx.closePath(); ctx.fill();
+}
+function drawTrain(tr, dir, y) {
+  const carW = tr.w / tr.cars;
+  for (let i = 0; i < tr.cars; i++) {
+    const x = OX + (tr.x + i * carW) * T + 2, w = carW * T - 4, top = y + T * 0.06, h = T * 0.84;
+    const front = dir > 0 ? i === tr.cars - 1 : i === 0;
+    ctx.fillStyle = "rgba(0,0,0,.3)"; ctx.fillRect(x + 3, top + 4, w, h);
+    ctx.fillStyle = front ? tr.color : "#d9dde6"; rr(x, top, w, h, T * 0.12); ctx.fill();
+    ctx.fillStyle = front ? "#ffd23f" : tr.color; ctx.fillRect(x, top + h * 0.42, w, h * 0.16);
+    ctx.fillStyle = "#bfe6ff";
+    if (front) ctx.fillRect(dir > 0 ? x + w - T * 0.4 : x + T * 0.12, top + h * 0.15, T * 0.28, h * 0.7);
+    else for (let k = 0.2; k < carW - 0.3; k += 0.7) ctx.fillRect(x + k * T, top + h * 0.12, T * 0.4, h * 0.22);
+  }
+}
+
+function drawDuckInWorld() {
+  const t = duck.hopT < 1 ? duck.hopT : 1;
+  const lift = duck.hopT < 1 ? Math.sin(Math.PI * t) * T * 0.35 : 0;
+  const cx = sx(visX()), cy = H - (visRow() - camRow + 0.5) * T;
+  if (duck.dead && (deathKind === "squish" || deathKind === "train")) {
+    ctx.save(); ctx.translate(cx, cy); ctx.scale(1.5, 0.35); drawDuck(0, 0, T, duck.face, 0, 0, true); ctx.restore(); return;
+  }
+  if (duck.dead && deathKind === "splash") {
+    const k = Math.min(1, (time - deathAt) / 0.6);
+    ctx.strokeStyle = "rgba(255,255,255,.8)"; ctx.lineWidth = 3;
+    for (let i = 0; i < 2; i++) { ctx.beginPath(); ctx.ellipse(cx, cy, T * (0.2 + k * 0.5 + i * 0.15), T * (0.1 + k * 0.25 + i * 0.08), 0, 0, 7); ctx.stroke(); }
+    if (k < 0.5) { ctx.save(); ctx.globalAlpha = 1 - k * 2; drawDuck(cx, cy + k * T * 0.4, T * (1 - k), duck.face, 0, 0); ctx.restore(); }
+    return;
+  }
+  if (duck.dead && deathKind === "hawk") return;
+  ctx.fillStyle = "rgba(0,0,0,.22)"; ctx.beginPath(); ctx.ellipse(cx, cy + T * 0.28, T * 0.3 * (1 - lift / T), T * 0.1, 0, 0, 7); ctx.fill();
+  const sq = duck.hopT < 1 ? (t < 0.2 ? -0.12 : 0.08) : (duck.squash > 0 ? 0.12 : 0);
+  drawDuck(cx, cy - lift, T, duck.face, sq, 0);
+}
+// every hopper, seen from above, facing `face` (0 = up the screen). sk picks the character.
+function drawDuck(cx, cy, size, face, squash, _, flat, sk) {
+  const s = sk || skin(), u = size, k = s.kind;
+  const E = (x, y, rx, ry, col, rot = 0) => { ctx.fillStyle = col; ctx.beginPath(); ctx.ellipse(x * u, y * u, rx * u, ry * u, rot, 0, 7); ctx.fill(); };
+  ctx.save(); ctx.translate(cx, cy);
+  ctx.scale(1 + (squash || 0), 1 - (squash || 0));
+  ctx.rotate(face);
+  // feet / legs peeking out
+  if (k === "frog") { for (const g of [-1, 1]) { E(g * 0.27, 0.2, 0.12, 0.07, s.shade, g * 0.5); E(g * 0.24, -0.1, 0.08, 0.05, s.shade, -g * 0.4); } }
+  else if (k !== "hedgehog") { for (const g of [-1, 1]) E(g * 0.12, 0.27, 0.07, 0.05, k === "duck" || k === "penguin" || k === "robo" ? s.beak : s.shade); }
+  // tail
+  if (k === "duck" || k === "robo") E(0, 0.3, 0.08, 0.08, s.shade);
+  if (k === "bunny") E(0, 0.3, 0.09, 0.09, "#fff");
+  if (k === "kitty") { ctx.strokeStyle = s.shade; ctx.lineWidth = u * 0.07; ctx.lineCap = "round"; ctx.beginPath(); ctx.moveTo(0, u * 0.25); ctx.quadraticCurveTo(u * 0.2, u * 0.38, u * 0.14, u * 0.46); ctx.stroke(); }
+  if (k === "pig") { ctx.strokeStyle = s.shade; ctx.lineWidth = u * 0.04; ctx.beginPath(); ctx.arc(0, u * 0.33, u * 0.05, 0, 5.5); ctx.stroke(); }
+  // body
+  if (k === "hedgehog") {
+    ctx.fillStyle = s.shade;
+    ctx.beginPath();
+    for (let i = 0; i <= 22; i++) { const a = (i / 22) * Math.PI * 2, r = (i % 2 ? 0.27 : 0.37) * u; ctx.lineTo(Math.sin(a) * r, Math.cos(a) * r + u * 0.02); }
+    ctx.closePath(); ctx.fill();
+    E(0, 0.03, 0.25, 0.24, "#5a3c22");
+  } else {
+    E(0, 0.04, 0.33, 0.3, s.shade);
+    E(0, 0, 0.31, 0.28, s.body);
+    if (k === "penguin") E(0, -0.04, 0.2, 0.2, s.belly);
+    if (k === "robo") { ctx.strokeStyle = s.shade; ctx.lineWidth = u * 0.02; ctx.strokeRect(-u * 0.16, -u * 0.02, u * 0.32, u * 0.18); E(-0.08, 0.07, 0.03, 0.03, "#3fe0ff"); E(0.02, 0.07, 0.03, 0.03, "#ffd23f"); E(0.11, 0.07, 0.03, 0.03, "#ff5a8a"); }
+    if (k === "kitty") { ctx.strokeStyle = s.shade; ctx.lineWidth = u * 0.035; for (const y of [0.02, 0.12]) { ctx.beginPath(); ctx.moveTo(-u * 0.14, y * u); ctx.lineTo(u * 0.14, y * u); ctx.stroke(); } }
+  }
+  // wings / arms
+  if (k === "duck" || k === "robo") for (const g of [-1, 1]) E(g * 0.22, 0.04, 0.08, 0.15, s.shade, g * 0.15);
+  if (k === "penguin") for (const g of [-1, 1]) E(g * 0.3, 0.02, 0.06, 0.16, s.shade, g * 0.25);
+  if (s.stars) [[-0.15, 0.12], [0.12, 0.15], [0.02, 0.0], [-0.05, 0.2]].forEach(([a, b]) => E(a, b, 0.025, 0.025, "#fff6a8"));
+  // ears (behind the head)
+  const hy = -0.2;
+  if (k === "bunny") for (const g of [-1, 1]) { E(g * 0.09, hy + 0.08, 0.06, 0.2, s.shade, g * 0.35); E(g * 0.09, hy + 0.08, 0.035, 0.15, "#ffc6d6", g * 0.35); }
+  if (k === "kitty" || k === "pig") for (const g of [-1, 1]) {
+    ctx.fillStyle = s.shade; ctx.beginPath();
+    ctx.moveTo(g * u * 0.06, hy * u - u * 0.12); ctx.lineTo(g * u * (k === "pig" ? 0.24 : 0.2), hy * u - u * (k === "pig" ? 0.14 : 0.22)); ctx.lineTo(g * u * 0.2, hy * u - u * 0.02); ctx.fill();
+  }
+  if (k === "robo") { ctx.strokeStyle = "#555"; ctx.lineWidth = u * 0.025; ctx.beginPath(); ctx.moveTo(0, (hy - 0.16) * u); ctx.lineTo(0, (hy - 0.3) * u); ctx.stroke(); E(0, hy - 0.31, 0.04, 0.04, Math.floor(time * 4) % 2 ? "#ff3030" : "#ffd23f"); }
+  // head
+  const hr = k === "frog" ? 0.24 : k === "hedgehog" ? 0.15 : 0.19;
+  const hc = k === "hedgehog" ? s.body : k === "penguin" ? s.body : s.body;
+  E(0, hy - (k === "hedgehog" ? 0.12 : 0), hr + 0.015, hr + 0.015, s.shade);
+  E(0, hy - (k === "hedgehog" ? 0.12 : 0), hr, hr, hc);
+  if (k === "penguin") E(0, hy - 0.04, 0.12, 0.1, s.belly);
+  // nose / beak / snout
+  if (k === "duck" || k === "robo") E(0, hy - 0.19, 0.1, 0.07, s.beak);
+  if (k === "penguin") E(0, hy - 0.19, 0.06, 0.06, s.beak);
+  if (k === "pig") { E(0, hy - 0.14, 0.09, 0.065, s.shade); E(-0.03, hy - 0.14, 0.017, 0.022, "#a84a64"); E(0.03, hy - 0.14, 0.017, 0.022, "#a84a64"); }
+  if (k === "bunny" || k === "kitty") E(0, hy - 0.15, 0.035, 0.025, s.beak);
+  if (k === "hedgehog") E(0, hy - 0.27, 0.04, 0.035, s.beak);
+  if (k === "frog") { ctx.strokeStyle = s.shade; ctx.lineWidth = u * 0.02; ctx.beginPath(); ctx.arc(0, hy * u - u * 0.06, u * 0.13, 0.3 * Math.PI + Math.PI, 0.7 * Math.PI + Math.PI, false); ctx.stroke(); }
+  if (k === "kitty") { ctx.strokeStyle = "#6a4a2a"; ctx.lineWidth = u * 0.012; for (const g of [-1, 1]) for (const d of [-0.03, 0.02]) { ctx.beginPath(); ctx.moveTo(g * u * 0.06, (hy - 0.14 + d) * u); ctx.lineTo(g * u * 0.24, (hy - 0.16 + d * 2) * u); ctx.stroke(); } }
+  // eyes
+  const ey = k === "frog" ? hy - 0.12 : k === "hedgehog" ? hy - 0.18 : hy - 0.07, ex = k === "frog" ? 0.13 : k === "hedgehog" ? 0.06 : 0.085;
+  for (const g of [-1, 1]) {
+    if (flat) {
+      ctx.strokeStyle = "#1a1a2a"; ctx.lineWidth = Math.max(1, u * 0.03); const x = g * ex * u, y = ey * u, d = u * 0.03;
+      ctx.beginPath(); ctx.moveTo(x - d, y - d); ctx.lineTo(x + d, y + d); ctx.moveTo(x + d, y - d); ctx.lineTo(x - d, y + d); ctx.stroke();
+      continue;
+    }
+    if (k === "frog") E(g * ex, ey, 0.08, 0.08, s.body);
+    if (k === "robo") { E(g * ex, ey, 0.05, 0.05, "#3fe0ff"); E(g * ex - 0.01, ey - 0.01, 0.015, 0.015, "#fff"); continue; }
+    const er = k === "frog" ? 0.06 : k === "hedgehog" ? 0.035 : 0.05;
+    E(g * ex, ey, er, er, "#fff");
+    E(g * ex, ey - er * 0.3, er * 0.55, er * 0.55, "#1a1a2a");
+  }
+  if (k === "bunny" || k === "pig" || k === "kitty") for (const g of [-1, 1]) E(g * 0.13, hy - 0.01, 0.035, 0.022, "rgba(255,110,150,.45)");
+  ctx.restore();
+}
+function drawHawk(cx, cy, size, carrying) {
+  const u = size, flap = Math.sin(time * 18) * 0.35;
+  ctx.save(); ctx.translate(cx, cy);
+  if (carrying) drawDuck(0, u * 0.35, u * 0.7, Math.PI, 0, 0);
+  ctx.fillStyle = "#6b4a2e";
+  for (const s of [-1, 1]) {
+    ctx.save(); ctx.scale(s, 1); ctx.rotate(flap);
+    ctx.beginPath(); ctx.moveTo(u * 0.1, 0); ctx.quadraticCurveTo(u * 0.6, -u * 0.35, u * 0.95, -u * 0.05); ctx.lineTo(u * 0.8, u * 0.08); ctx.lineTo(u * 0.6, u * 0.04); ctx.lineTo(u * 0.45, u * 0.12); ctx.closePath(); ctx.fill();
+    ctx.restore();
+  }
+  ctx.fillStyle = "#7d5634"; ctx.beginPath(); ctx.ellipse(0, 0, u * 0.16, u * 0.32, 0, 0, 7); ctx.fill();
+  ctx.fillStyle = "#f2efe6"; ctx.beginPath(); ctx.arc(0, -u * 0.3, u * 0.13, 0, 7); ctx.fill();
+  ctx.fillStyle = "#ffc21f"; ctx.beginPath(); ctx.moveTo(-u * 0.05, -u * 0.4); ctx.lineTo(u * 0.05, -u * 0.4); ctx.lineTo(0, -u * 0.5); ctx.fill();
+  ctx.fillStyle = "#111"; ctx.beginPath(); ctx.arc(-u * 0.05, -u * 0.33, u * 0.025, 0, 7); ctx.arc(u * 0.05, -u * 0.33, u * 0.025, 0, 7); ctx.fill();
+  ctx.restore();
+}
+
+/* ---------- HUD and screens ---------- */
+function updateHud() {
+  $("score").textContent = score || 0; $("coins").textContent = totalCoins; $("best").textContent = best;
+  $("muteBtn").textContent = sfx.muted ? "🔇" : "🔊";
+}
+let hintTimer = 0;
+function showHint(t) { const h = $("hint"); h.textContent = t; h.classList.remove("gone"); clearTimeout(hintTimer); hintTimer = setTimeout(hideHint, 5000); }
+function hideHint() { $("hint").classList.add("gone"); }
+const DEATH_TEXT = {
+  squish: ["Honk honk, splat!", "That car didn't stop for hoppers."],
+  train:  ["Choo-choo, oops!", "Watch for the flashing red lights."],
+  splash: ["Sploosh!", "Splish splash, that river is deep!"],
+  hawk:   ["Snatched!", "The hawk caught you dawdling. Keep hopping!"],
+};
+function showEnd() {
+  if (state !== "dying") return;
+  state = "over";
+  const [title, line] = DEATH_TEXT[deathKind] || DEATH_TEXT.squish;
+  $("endTitle").textContent = title;
+  const newBest = score >= best && score > 0;
+  $("endText").innerHTML = `${line}<br><b>Score: ${score}</b>${newBest ? " 🎉 New best!" : ` · Best: ${best}`}<br>🪙 +${runCoins} coins (${totalCoins} saved)`;
+  $("endScreen").hidden = false;
+}
+function buildSkins() {
+  const box = $("skins"); box.innerHTML = "";
+  for (const s of SKINS) {
+    const b = document.createElement("button");
+    const has = owned.includes(s.id);
+    b.className = "skin" + (s.id === skinId ? " sel" : "") + (has ? "" : " locked") + (!has && totalCoins < s.cost ? " poor" : "");
+    const c = document.createElement("canvas"); c.width = 112; c.height = 112; b.appendChild(c);
+    const nm = document.createElement("div"); nm.textContent = s.name; b.appendChild(nm);
+    const cost = document.createElement("div"); cost.className = "cost"; cost.textContent = has ? (s.id === skinId ? "Picked" : "Tap to pick") : `🔒 ${s.cost} coins`; b.appendChild(cost);
+    ctxSwap(c.getContext("2d"), () => drawDuck(56, 66, 108, 0, 0, 0, false, s));
+    b.onclick = () => {
+      sfx.init();
+      if (!owned.includes(s.id)) {
+        if (totalCoins < s.cost) { b.animate && b.animate([{ transform: "translateX(-5px)" }, { transform: "translateX(5px)" }, { transform: "none" }], 200); return; }
+        totalCoins -= s.cost; owned.push(s.id); store.set("duckDashCoins", totalCoins); store.set("duckDashOwned", owned); sfx.buy();
+      }
+      skinId = s.id; store.set("duckDashSkin", skinId); buildSkins(); updateHud();
+    };
+    box.appendChild(b);
+  }
+  $("wallet").textContent = totalCoins;
+}
+function ctxSwap(other, fn) { const keep = ctx; ctx = other; try { fn(); } finally { ctx = keep; } }
+function showMenu() {
+  state = "menu"; $("endScreen").hidden = true; $("pauseScreen").hidden = true; $("startScreen").hidden = false;
+  const m = isMobileMode(); $("howKeys").style.display = m ? "none" : ""; $("howTouch").style.display = m ? "" : "none";
+  buildSkins();
+}
+function startGame() { sfx.init(); $("startScreen").hidden = true; $("endScreen").hidden = true; newRun(); }
+function pause() { if (state !== "play") return; state = "paused"; $("pauseScreen").hidden = false; }
+function resume() { if (state !== "paused") return; state = "play"; $("pauseScreen").hidden = true; last = performance.now(); }
+
+$("playBtn").onclick = startGame;
+$("againBtn").onclick = startGame;
+$("menuBtn").onclick = showMenu;
+$("resumeBtn").onclick = resume;
+$("quitBtn").onclick = () => { $("pauseScreen").hidden = true; showMenu(); };
+$("pauseBtn").onclick = () => state === "paused" ? resume() : pause();
+$("muteBtn").onclick = () => { sfx.init(); sfx.setMuted(!sfx.muted); updateHud(); };
+
+/* ---------- keyboard ---------- */
+const KEYMAP = { ArrowUp: "up", KeyW: "up", ArrowDown: "down", KeyS: "down", ArrowLeft: "left", KeyA: "left", ArrowRight: "right", KeyD: "right" };
+const held = {};
+document.addEventListener("keydown", e => {
+  const dir = KEYMAP[e.code];
+  if (dir) {
+    e.preventDefault();
+    if (held[e.code]) return;   // no auto-repeat: one press, one hop
+    held[e.code] = true;
+    tryHop(dir); return;
+  }
+  if (e.code === "Space" || e.code === "Enter") {
+    e.preventDefault();
+    if (state === "menu") startGame(); else if (state === "over") startGame(); else if (state === "paused") resume(); else tryHop("up");
+  }
+  if (e.code === "KeyP" || e.code === "Escape") { state === "paused" ? resume() : pause(); }
+  if (e.code === "KeyM") { sfx.init(); sfx.setMuted(!sfx.muted); updateHud(); }
+});
+document.addEventListener("keyup", e => { held[e.code] = false; });
+
+/* ---------- touch / mouse: tap = forward, swipe = direction ---------- */
+let swipe = null;
+const stage = $("stage");
+stage.addEventListener("pointerdown", e => {
+  if (state !== "play") return;
+  e.preventDefault();
+  swipe = { id: e.pointerId, x: e.clientX, y: e.clientY, done: false };
+});
+stage.addEventListener("pointermove", e => {
+  if (!swipe || swipe.id !== e.pointerId || swipe.done) return;
+  const dx = e.clientX - swipe.x, dy = e.clientY - swipe.y, th = Math.max(26, T * 0.5);
+  if (Math.abs(dx) > th || Math.abs(dy) > th) {   // hop as soon as the swipe is long enough
+    swipe.done = true;
+    tryHop(Math.abs(dx) > Math.abs(dy) ? (dx > 0 ? "right" : "left") : (dy > 0 ? "down" : "up"));
+  }
+});
+function endSwipe(e) {
+  if (!swipe || swipe.id !== e.pointerId) return;
+  if (!swipe.done) tryHop("up");
+  swipe = null;
+}
+stage.addEventListener("pointerup", endSwipe);
+stage.addEventListener("pointercancel", () => { swipe = null; });
+stage.addEventListener("contextmenu", e => e.preventDefault());
+
+document.addEventListener("visibilitychange", () => { if (document.hidden) pause(); });
+window.addEventListener("blur", () => pause());
+
+/* ---------- main loop ---------- */
+let last = performance.now();
+function frame(now) {
+  const dt = Math.min(0.05, (now - last) / 1000); last = now;
+  if (state === "play" || state === "dying" || state === "over") update(dt);
+  else if (state === "menu") { time += dt; }
+  draw();
+  requestAnimationFrame(frame);
+}
+window.addEventListener("resize", resize);
+try { new ResizeObserver(resize).observe($("stage")); } catch (e) {}
+// testing hook (harmless): lets automated checks peek at the game
+window.__duckDash = { get state() { return state; }, get duck() { return duck; }, get score() { return score; }, lanes: () => lanes, hop: tryHop, start: startGame };
+
+resize();
+// a pretty backdrop behind the menu
+lanes = {}; genRow = 0; ensureLanes(30);
+duck = { x: 4, row: 2, fromX: 4, fromRow: 2, toX: 4, toRow: 2, hopT: 1, face: 0, alive: true, dead: false, squash: 0 };
+camRow = 0; score = 0;
+showMenu(); updateHud();
+requestAnimationFrame(frame);
+</script>
+</body>
+</html>

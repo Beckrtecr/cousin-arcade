@@ -15,6 +15,7 @@ It is plain HTML, CSS and JavaScript. There is no build step, no install and no 
 | **Dopamine Engine** | A clicker game where a stage fills up with gadgets you buy. | Click to earn buzz, spend it in the shop. Meltdowns and Big Bangs reset you for permanent bonuses. Progress saves in your browser. |
 | **Bobblehead Ball** | Two player head soccer. | Left player: A/D to move, W to jump, S or Space to kick, F or E for super. Right player: arrow keys to move and jump, Down or / to kick, Enter for super. Touch the ball to charge your super. |
 | **Picnic Panic** | Tower defense: bugs march toward your picnic cake and kitchen gadgets squash them. 3 maps, 20 waves, a Queen Ant boss. | Pick a defender from the bottom bar (or keys 1-5), then click or tap the grass to place it. Click a defender to upgrade or sell it. Space sends the next wave. |
+| **Duck Dash** | Endless hopper: cross busy roads, ride logs and lily pads over rivers, and dodge trains. Collect coins to unlock 9 characters. | Arrow keys or WASD to hop (or click to hop forward). On a phone, tap to hop forward and swipe to hop left, right or back. P pauses. |
 
 ## Playing locally
 
