@@ -71,4 +71,11 @@ const GAMES = [
     thumbnail: "games/picnic-panic/thumb.svg",
     color: "#d6333a",
   },
+  {
+    title: "Duck Dash",
+    maker: "Cousin Crew",
+    folder: "games/duck-dash",
+    thumbnail: "games/duck-dash/thumb.svg",
+    color: "#3ea6e6",
+  },
 ];
