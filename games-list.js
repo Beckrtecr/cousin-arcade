@@ -78,4 +78,11 @@ const GAMES = [
     thumbnail: "games/duck-dash/thumb.svg",
     color: "#3ea6e6",
   },
+  {
+    title: "Canyon Comet",
+    maker: "Cousin Crew",
+    folder: "games/canyon-comet",
+    thumbnail: "games/canyon-comet/thumb.svg",
+    color: "#ff7a2a",
+  },
 ];

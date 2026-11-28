@@ -16,6 +16,7 @@ It is plain HTML, CSS and JavaScript. There is no build step, no install and no 
 | **Bobblehead Ball** | Two player head soccer. | Left player: A/D to move, W to jump, S or Space to kick, F or E for super. Right player: arrow keys to move and jump, Down or / to kick, Enter for super. Touch the ball to charge your super. |
 | **Picnic Panic** | Tower defense: bugs march toward your picnic cake and kitchen gadgets squash them. 3 maps, 20 waves, a Queen Ant boss. | Pick a defender from the bottom bar (or keys 1-5), then click or tap the grass to place it. Click a defender to upgrade or sell it. Space sends the next wave. |
 | **Duck Dash** | Endless hopper: cross busy roads, ride logs and lily pads over rivers, and dodge trains. Collect coins to unlock 9 characters. | Arrow keys or WASD to hop (or click to hop forward). On a phone, tap to hop forward and swipe to hop left, right or back. P pauses. |
+| **Canyon Comet** | A 3D endless runner: Pip the fox races down a sunset canyon on three trails. Jump fences, slide under signs, dodge rock pillars and rolling boulders, and run along ledges. Grab sunstones and power-ups (magnet, shield, comet glide, double score) and unlock 3 more runners. | Left/right or A/D to switch trail, Up, W or Space to jump, Down or S to slide. On a phone, swipe left, right, up or down. P pauses, M toggles sound. |
 
 ## Playing locally
 
@@ -27,7 +28,7 @@ python3 -m http.server 8000
 
 Then open <http://localhost:8000> in your browser.
 
-Opening `index.html` straight from your files (double clicking it) mostly works too, but a local server is more reliable, because some browsers block things on `file://` pages. Notebook Brawl's online play also needs an internet connection, since it loads PeerJS from a CDN.
+Opening `index.html` straight from your files (double clicking it) mostly works too, but a local server is more reliable, because some browsers block things on `file://` pages. Notebook Brawl's online play also needs an internet connection, since it loads PeerJS from a CDN. Canyon Comet uses Three.js for its 3D graphics; a copy (`three.min.js`, MIT licence) lives in its folder so it works offline.
 
 ## Adding a game
 

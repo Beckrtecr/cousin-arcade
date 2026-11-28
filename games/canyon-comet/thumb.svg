@@ -1,0 +1,41 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 200">
+  <defs>
+    <linearGradient id="sky" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#2c2270"/><stop offset=".45" stop-color="#c8507a"/><stop offset=".8" stop-color="#ffab6a"/></linearGradient>
+    <radialGradient id="sun"><stop offset="0" stop-color="#fff6c8"/><stop offset=".4" stop-color="#ffd27a"/><stop offset="1" stop-color="#ffab6a" stop-opacity="0"/></radialGradient>
+    <linearGradient id="gem" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#ffe08a"/><stop offset="1" stop-color="#ff8a1f"/></linearGradient>
+  </defs>
+  <rect width="320" height="200" fill="url(#sky)"/>
+  <circle cx="200" cy="100" r="60" fill="url(#sun)"/>
+  <!-- canyon walls -->
+  <path d="M0 40 L40 20 L70 50 L95 45 L130 110 L0 140Z" fill="#c4623a"/>
+  <path d="M0 70 L50 55 L120 112 L0 150Z" fill="#a84a2c"/>
+  <path d="M20 90 L60 80 L115 115 L30 130Z" fill="#e0894e"/>
+  <path d="M320 30 L280 18 L250 48 L225 44 L190 110 L320 140Z" fill="#c4623a"/>
+  <path d="M320 65 L270 58 L200 112 L320 150Z" fill="#a84a2c"/>
+  <path d="M300 88 L255 82 L205 114 L290 128Z" fill="#eaa66c"/>
+  <!-- sand and trails -->
+  <path d="M0 112 L320 112 L320 200 L0 200Z" fill="#e6a86e"/>
+  <path d="M150 112 L170 112 L230 200 L90 200Z" fill="#c88652" opacity=".55"/>
+  <path d="M140 112 L150 112 L60 200 L5 200Z" fill="#c88652" opacity=".45"/>
+  <path d="M170 112 L180 112 L315 200 L260 200Z" fill="#c88652" opacity=".45"/>
+  <!-- fence -->
+  <g transform="translate(205 128)"><rect x="0" y="0" width="4" height="22" fill="#5e3820"/><rect x="38" y="0" width="4" height="22" fill="#5e3820"/><rect x="-2" y="4" width="46" height="6" fill="#d8343a"/><rect x="-2" y="13" width="46" height="5" fill="#8a5530"/></g>
+  <!-- cactus -->
+  <g fill="#4f9440"><rect x="40" y="112" width="9" height="40" rx="4"/><rect x="30" y="122" width="6" height="16" rx="3"/><rect x="30" y="134" width="12" height="5" rx="2"/><rect x="52" y="118" width="6" height="14" rx="3"/><rect x="46" y="128" width="12" height="5" rx="2"/></g>
+  <!-- sunstones -->
+  <g fill="url(#gem)" stroke="#fff" stroke-opacity=".5"><path d="M160 120 l6 7 -6 10 -6 -10Z"/><path d="M162 142 l7 8 -7 12 -7 -12Z"/><path d="M240 150 l8 9 -8 14 -8 -14Z"/></g>
+  <!-- Pip the fox, running away from us -->
+  <g transform="translate(150 150)">
+    <ellipse cx="2" cy="47" rx="22" ry="5" fill="#000" opacity=".2"/>
+    <path d="M14 20 Q40 10 42 32 Q30 38 16 30Z" fill="#e8762c"/><circle cx="40" cy="28" r="7" fill="#fff3e2"/>
+    <rect x="-9" y="26" width="7" height="18" rx="3" fill="#e8762c" transform="rotate(14 -6 26)"/><rect x="3" y="26" width="7" height="18" rx="3" fill="#e8762c" transform="rotate(-18 6 26)"/>
+    <ellipse cx="-9" cy="45" rx="5" ry="4" fill="#3a2418"/><ellipse cx="12" cy="42" rx="5" ry="4" fill="#3a2418"/>
+    <rect x="-13" y="0" width="26" height="30" rx="12" fill="#e8762c"/>
+    <rect x="-17" y="3" width="6" height="16" rx="3" fill="#e8762c" transform="rotate(25 -14 3)"/><rect x="11" y="3" width="6" height="16" rx="3" fill="#e8762c" transform="rotate(-25 14 3)"/>
+    <rect x="-12" y="-2" width="24" height="6" rx="3" fill="#e23b3b"/><path d="M4 2 l10 14 -5 2 -9 -12Z" fill="#e23b3b"/>
+    <circle cx="0" cy="-14" r="14" fill="#e8762c"/>
+    <path d="M-12 -20 l-3 -16 12 9Z" fill="#e8762c"/><path d="M12 -20 l3 -16 -12 9Z" fill="#e8762c"/>
+    <path d="M-15 -36 l1 6 4 -2Z" fill="#3a2418"/><path d="M15 -36 l-1 6 -4 -2Z" fill="#3a2418"/>
+    <rect x="-14" y="-20" width="28" height="4" rx="2" fill="#2b2b38"/>
+  </g>
+</svg>
